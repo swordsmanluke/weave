@@ -1,6 +1,6 @@
 use std::fmt::{Display, Write};
 use crate::weave::Op;
-use crate::weave::vm::dissassemble::Disassemble;
+use crate::weave::vm::traits::disassemble::Disassemble;
 use crate::weave::vm::types::WeaveType;
 use crate::weave::vm::values::ValueArray;
 
@@ -31,6 +31,7 @@ impl Chunk {
     }
 
     pub fn add_constant(&mut self, value: WeaveType, line: usize) -> usize {
+        self.write(Op::CONSTANT, line);
         self.constants.push(value);
         let idx = (self.constants.values.len() - 1) as u8;
         self._write(&vec![idx], line);

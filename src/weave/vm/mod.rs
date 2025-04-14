@@ -1,5 +1,6 @@
 pub(crate) mod chunk;
-pub(crate) mod bytecode;
-mod dissassemble;
+pub(crate) mod opcode;
 mod values;
 mod types;
+mod traits;
+pub mod vm;
