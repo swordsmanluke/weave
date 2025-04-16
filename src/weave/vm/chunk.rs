@@ -1,4 +1,4 @@
-use std::fmt::{Display, Write};
+use std::fmt::{Write};
 use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;
 use crate::weave::vm::types::WeaveType;
@@ -36,6 +36,10 @@ impl Chunk {
         let idx = (self.constants.values.len() - 1) as u8;
         self._write(&vec![idx], line);
         idx as usize
+    }
+    
+    pub fn get_constant(&self, idx: usize) -> &WeaveType {
+        &self.constants.values[idx]
     }
 
     pub fn disassemble(&self, name: &str) -> String {

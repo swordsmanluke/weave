@@ -1,5 +1,4 @@
 use std::fmt::Write;
-use std::fmt::Display;
 use crate::weave::Chunk;
 use crate::weave::vm::traits::disassemble::Disassemble;
 

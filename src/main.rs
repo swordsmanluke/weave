@@ -1,31 +1,46 @@
-use crate::weave::{Chunk, Op};
-use crate::weave::vm::vm::VM;
+use crate::weave::vm::vm::{VM};
 
 mod weave;
+use std::env;
+use std::io::Write;
+use std::process::exit;
 
 fn main() {
-    let mut vm = VM::new(true);
+    let args = env::args().collect::<Vec<String>>();
 
-    let mut c = Chunk::new();
-    c.add_constant(1.2.into(), 123);
-    c.add_constant(2.into(), 123);
-
-    c.write(Op::ADD, 123);
-
-    c.add_constant(5.into(), 123);
-    c.write(Op::MUL, 123);
-
-    c.add_constant(2.into(), 123);
-    c.write(Op::DIV, 123);
-
-    c.write(Op::RETURN, 123);
-
-    match vm.interpret(&c) {
-        Ok(_) => {},
-        Err(e) => {
-            println!("Error: {:?}", e);
-            println!("{}", c.disassemble("test"));
-        },
+    if args.len() > 1 {
+        run_file(&args[1]);
+    } else {
+        repl();
     }
+}
 
+fn run_file(path: &str) {
+    let file_contents = std::fs::read_to_string(path).unwrap();
+    let mut vm = VM::new(false);
+    let res = vm.interpret(&file_contents);
+    match res {
+        Ok(_) => {},
+        Err(e) => { println!("{:?} reading {}", e, path); exit(e.exit_code()) },
+    }
+}
+
+fn repl() {
+    let mut vm = VM::new(true);
+    
+    loop {
+        // TODO: Allow multi-line input and parsing
+        
+        print!("> ");
+        std::io::stdout().flush().unwrap();
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line).unwrap();
+    
+        match vm.interpret(&line) {
+            Ok(r) => { println!("{}", r) },
+            Err(e) => {
+                println!("Error: {:?}", e);
+            },
+        }
+    }
 }

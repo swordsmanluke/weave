@@ -1,12 +1,37 @@
 use crate::weave::{Chunk, Op};
-use crate::weave::color::green;
+use crate::weave::compiler::compile;
 use crate::weave::vm::traits::Disassemble;
 use crate::weave::vm::types::WeaveType;
 use crate::weave::vm::types::errors::OpResult;
 
-pub struct VM<'a> {
-    chunk: Option<&'a Chunk>,
-    ip: Option<*const u8>,
+struct IP {
+    ip: *const u8,
+    head: *const u8
+}
+
+impl IP {
+    pub fn new(ptr: *const u8) -> IP {
+        IP {
+            ip: ptr,
+            head: ptr
+        }
+    }
+    
+    pub fn offset(&self) -> usize {
+        unsafe { self.ip.offset_from(self.head) as usize } 
+    }
+    
+    pub fn next(&mut self) -> u8 {
+        let b = unsafe { self.ip.read() };
+        self.ip = unsafe { self.ip.offset(1) };
+
+        b.clone()
+    }
+}
+
+pub struct VM {
+    chunk: Option<Chunk>,
+    ip: Option<IP>,
     stack: Vec<WeaveType>,
     pub debug_mode: bool,
 }
@@ -20,10 +45,22 @@ pub enum VMError {
     InternalError(String)
 }
 
-pub type VMResult = Result<(), VMError>;
+impl VMError {
+    pub fn exit_code(&self) -> i32 {
+        match self {
+            VMError::InvalidChunk => 61,
+            VMError::InvalidInstruction => 62,
+            VMError::InvalidOperand => 63,
+            VMError::InvalidOperandType => 64,
+            VMError::InternalError(_) => 65,
+        }
+    }
+}
 
-impl<'a> VM<'a> {
-    pub fn new(debug_mode: bool) -> VM<'a> {
+pub type VMResult = Result<WeaveType, VMError>;
+
+impl VM {
+    pub fn new(debug_mode: bool) -> VM {
         VM {
             chunk: None,
             ip: None,
@@ -32,28 +69,16 @@ impl<'a> VM<'a> {
         }
     }
 
-    pub fn interpret(&mut self, chunk: &'a Chunk) -> VMResult {
+    pub fn interpret(&mut self, source: &str) -> VMResult {
+        let chunk = compile(source);
+        self.ip = Some(IP::new(chunk.code.as_ptr()));
         self.chunk = Some(chunk);
-        self.ip = Some(chunk.code.as_ptr());
         self.run()
     }
 
-    fn _next(&mut self) -> u8 {
-        let b = unsafe { self.ip.unwrap().read() };
-        self.ip = unsafe { Some(self.ip.unwrap().offset(1)) };
-
-        b
-    }
-
-    fn _offset(&mut self) -> usize {
-        let head = self.chunk.unwrap().code.as_ptr();
-        (unsafe { self.ip.unwrap().byte_offset_from(head).abs() }) as usize
-    }
-
     fn _read_constant(&mut self) -> &WeaveType {
-        let idx = self._next() as usize;
-        let chunk = self.chunk.unwrap();
-        &chunk.constants.values[idx]
+        let idx = self.ip.as_mut().unwrap().next().clone() as usize;
+        self.chunk.as_ref().unwrap().get_constant(idx)
     }
 
     fn _push(&mut self, value: OpResult) -> VMResult {
@@ -62,13 +87,17 @@ impl<'a> VM<'a> {
         // whatever val/error you have and when we try to push it to the stack, determine if
         // something went wrong.
         match value {
-            Ok(v) => { self.stack.push(v); Ok(()) }
+            Ok(v) => { self.stack.push(v); Ok(self._peek()) }
             Err(msg) => { Err(VMError::InternalError(msg)) }
         }
     }
 
     fn _pop(&mut self) -> WeaveType {
         self.stack.pop().unwrap_or(WeaveType::None)
+    }
+    
+    fn _peek(&self) -> WeaveType {
+        self.stack.last().unwrap_or(&WeaveType::None).clone()
     }
 
     fn _poppop(&mut self) -> [WeaveType; 2] {
@@ -83,11 +112,11 @@ impl<'a> VM<'a> {
         }
 
         loop { // until ip offset > chunk size
-            let op = Op::at(self._next());
+            let op = Op::at(self.ip().next());
 
             if self.debug_mode {
                 let mut out = String::new();
-                op.disassemble(self._offset() - 1, &self.chunk.unwrap(), &mut out);
+                op.disassemble(self.ip().offset() - 1, self.chunk.as_ref().unwrap(), &mut out);
                 // TODO: tabular format
                 //    offset, line number, opcode, Optional var offset, optional var value, list of stack vars
                 print!("{}", out);
@@ -96,32 +125,34 @@ impl<'a> VM<'a> {
 
             match op {
                 Op::RETURN => {
-                    print!("{}", green(&format!("{}", self._pop())));
-                    return Ok(())
+                    return Ok(self._pop())
                 }
                 Op::CONSTANT => {
                     let v = Ok(self._read_constant().clone());
                     self._push(v);
                 }
-                Op::NEGATE => { let v = -self._pop(); self._push(v)? }
+                Op::NEGATE => { let v = -self._pop(); self._push(v)?; }
                 Op::ADD => {
                     let [a,b] = self._poppop();
-                    self._push(a + b)?
+                    self._push(a + b)?;
                 }
                 Op::SUB => {
                     let [a,b] = self._poppop();
-                    self._push(a - b)?
+                    self._push(a - b)?;
                 }
                 Op::MUL => {
                     let [a,b] = self._poppop();
-                    self._push(a * b)?
+                    self._push(a * b)?;
                 }
                 Op::DIV => {
                     let [a,b] = self._poppop();
-                    self._push(a / b)?
+                    self._push(a / b)?;
                 }
             }
         }
+    }
 
+    fn ip(&mut self) -> &mut IP {
+        self.ip.as_mut().unwrap()
     }
 }
