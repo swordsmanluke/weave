@@ -1,12 +1,14 @@
 use crate::weave::Chunk;
-use crate::weave::compiler::scanner::{Scanner};
+use crate::weave::compiler::parser::Parser;
 use crate::weave::compiler::token::{Token, TokenType};
 
 pub type CompileResult = Result<Chunk, String>;
 
 pub struct Compiler<'src> {
     line: usize,
-    parser: Parser<'src>
+    parser: Parser<'src>,
+    had_error: bool,
+    panic_mode: bool,
 }
 
 
@@ -14,7 +16,9 @@ impl<'src> Compiler<'src> {
     pub fn new(source: &'src str) -> Compiler<'src> {
         Compiler {
             line: 1,
-            parser: Parser::new(source)
+            parser: Parser::new(source),
+            had_error: false,
+            panic_mode: false
         }
     }
 
@@ -31,12 +35,33 @@ impl<'src> Compiler<'src> {
             match self.parser.next() {
                 Some(token) => {
                     if token.token_type == TokenType::ERROR {
-                        report_err(&token);
+                        self.report_err_at(&token, "Compiler error");
                     }
                 },
                 None => { return }
             }
         }
+    }
+    
+    pub fn consume(&mut self, token_type: TokenType, message: &str) {
+        if self.parser.cur_is(token_type) {
+            self.advance();
+        } else {
+            self.report_err(&format!("Expected {:?} but found {:?}", token_type, self.parser.peek_type()));
+        }
+    }
+    
+    fn report_err(&mut self, message: &str) {
+        self.report_err_at(&self.parser.peek(), message);
+    }
+
+    fn report_err_at(&mut self, token: &Token, message: &str) {
+        if self.panic_mode { return }
+        
+        println!("{}", message);
+        println!("Error on line {}:\n\t{}", token.line, token.lexeme);
+        self.had_error = true;
+        self.panic_mode = true;
     }
 
     // pub fn expression(&self) -> Result<(), String> {
@@ -47,32 +72,4 @@ impl<'src> Compiler<'src> {
     //     Ok(())
     // }
 }
-
-fn report_err(token: &Token) {
-    println!("Error on line {}:\n\t{}", token.line, token.lexeme);
-}
-
-struct Parser<'src> {
-    scanner: Scanner<'src>,
-    tokens: Vec<Token>,
-}
-
-impl <'src> Parser<'src> {
-    pub fn new(code: &'src str) -> Parser<'src> {
-        Parser {
-            scanner: Scanner::new(code),
-            tokens: Vec::new(),
-        }
-    }
-}
-
-impl Iterator for Parser<'_> {
-    type Item = Token;
-    
-    fn next(&mut self) -> Option<Self::Item> {
-        self.tokens.push(self.scanner.scan_token());
-        self.tokens.get(0).cloned()
-    }
-}
-
 
