@@ -1,251 +1,245 @@
 use crate::weave::compiler::token::{Token, TokenType};
+use std::str::Chars;
 
-pub struct Scanner {
+struct CharStream<'a> {
+    stream: Chars<'a>,
+    cur: Option<char>,
+    next: Option<char>,
 }
 
-pub struct Span {
-    code: String,
+impl<'a> CharStream<'a> {
+    fn new(code: &'a str) -> CharStream<'a> {
+        let mut stream = code.chars();
+        let cur = stream.next();
+        let next = stream.next();
+        CharStream { stream, cur, next }
+    }
+
+    pub fn peek(&self) -> char {
+        self.cur.unwrap_or('\0')
+    }
+    
+    pub fn peek_next(&self) -> char { 
+        self.next.unwrap_or('\0')
+    }
+
+    pub fn advance(&mut self) -> char {
+        let c = self.peek();
+        println!("advancing: {}", c);
+        self.cur = self.next;
+        self.next = self.stream.next();
+        c
+    }
+
+    pub fn matches(&self, c: char) -> bool {
+        self.cur == Some(c)
+    }
+
+    pub fn next_matches(&self, c: char) -> bool {
+        self.next == Some(c)
+    }
+}
+
+pub struct Scanner<'a> {
+    code: &'a str,
+    char_iter: CharStream<'a>,
     start: usize,
     current: usize,
     line: usize,
 }
 
-impl Span {
-    pub fn new(code: &str) -> Span {
-        let code = code.to_string();
-        Span {
+impl<'a> Scanner<'a> {
+    pub fn new(code: &'a str) -> Scanner<'a> {
+        Scanner {
             code,
+            char_iter: CharStream::new(&code),
             start: 0,
             current: 0,
             line: 1,
         }
     }
 
-    pub fn cur_lexeme(&self) -> &str {
+    fn advance(&mut self) -> char {
+        self.current += 1;
+        self.char_iter.advance()
+    }
+
+    fn cur_lexeme(&self) -> &str {
         &self.code[self.start..self.current]
     }
 
-    pub fn is_at_end(&self) -> bool {
+    fn is_at_end(&self) -> bool {
         self.current >= self.code.len()
     }
 
-    pub fn advance(&mut self) -> &str {
-        self.current += 1;
-        self.code.get(self.current - 1..self.current).unwrap()
-    }
-
-    pub fn peek(&self) -> Option<&str> {
-        self.peeknth(0)
-    }
-
-    pub fn peeknth(&self, n: usize) -> Option<&str> {
-        if self.is_at_end() { return None; }
-        self.code.get(self.current+n..self.current + n + 1)
-    }
-
-    pub fn peekc(&self) -> Option<char> {
-        self.peeknthc(0)
-    }
-
-    pub fn peeknthc(&self, n: usize) -> Option<char> {
-        if self.is_at_end() { return None; }
-        self.code.chars().nth(self.current + n)
-    }
-
-    pub fn consume(&mut self, pat: &str) -> bool {
-        match self.peek() {
-            None => false,
-            Some(p) => {
-                if p == pat {
-                    self.advance();
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-    }
-    
-    pub fn err_token(&self, message: &str) -> Token {
+    pub fn err_token(&self, message: &'static str) -> Token {
         Token::new(TokenType::ERROR, message, self.line)
-    } 
-    
+    }
+
     pub fn new_token(&self, token_type: TokenType) -> Token {
         Token::new(token_type, self.cur_lexeme(), self.line)
     }
 
     fn skip_whitespace(&mut self) {
         loop {
-            match self.peek() {
-                None => return,
-                Some(c) => {
-                    match c {
-                        " " |
-                        "\t" |
-                        "\r" => { self.advance(); }
-                        "\n" => { self.line += 1; self.advance(); }
-                        "#"  => { while !self.is_at_end() && self.peek() != Some("\n") { self.advance(); } }
-                        _ => return
+            match self.char_iter.peek() {
+                ' ' | '\t' | '\r' => {
+                    self.advance();
+                }
+                '\n' => {
+                    self.line += 1;
+                    self.advance();
+                }
+                '#' => {
+                    while !self.is_at_end() && self.char_iter.peek() != '\n' {
+                        self.advance();
                     }
                 }
-            }
-        }
-    }
-}
-
-impl Scanner {
-
-    pub fn new() -> Scanner {
-        Scanner { }
-    }
-
-    pub fn scan_token(&self, span: &mut Span) -> Token {
-        span.skip_whitespace();
-        span.start = span.current; // Reset the span/scanner
-
-        if span.is_at_end() {
-            return Token::new(TokenType::EOF, "", span.line);
-        }
-
-        span.advance();
-
-        match self.try_identifier(span) {
-            Some(it) => return it,
-            None => {}
-        };
-
-        match self.try_number(span) {
-            Some(nt) => return nt,
-            None => {}
-        };
-
-        match span.peek().unwrap_or("") {
-            "(" => span.new_token(TokenType::LeftParen),
-            ")" => span.new_token(TokenType::RightParen),
-            "{" => span.new_token(TokenType::LeftBrace),
-            "}" => span.new_token(TokenType::RightBrace),
-            "[" => span.new_token(TokenType::LeftBracket),
-            "]" => span.new_token(TokenType::RightBracket),
-            "," => span.new_token(TokenType::Comma),
-
-            "-" => span.new_token(TokenType::Minus),
-            "+" => span.new_token(TokenType::Plus),
-            ";" => span.new_token(TokenType::Semicolon),
-            "/" => span.new_token(TokenType::Slash),
-
-            "\"" => self.scan_string(span),
-
-            "*" => {
-                if span.consume(">") {
-                    span.new_token(TokenType::Map)
-                } else {
-                    span.new_token(TokenType::Star)
-                }
-            }
-            "!" => {
-                if span.consume("=") {
-                    span.new_token(TokenType::NEqual)
-                } else {
-                    span.new_token(TokenType::Bang)
-                }
-            }
-            "=" => {
-                if span.consume("=") {
-                    span.new_token(TokenType::EqEqual)
-                } else {
-                    span.new_token(TokenType::Equal)
-                }
-            }
-            "<" => {
-                if span.consume("=") {
-                    span.new_token(TokenType::LEqual)
-                } else {
-                    span.new_token(TokenType::Less)
-                }
-            }
-            ">" => {
-                if span.consume("=") {
-                    span.new_token(TokenType::GEqual)
-                } else {
-                    span.new_token(TokenType::Greater)
-                }
-            }
-            "&" => {
-                if span.consume("&") {
-                    span.new_token(TokenType::AndAnd)
-                } else if span.consume(">") {
-                    span.new_token(TokenType::Reduce)
-                } else {
-                    span.err_token("expected &&")
-                }
-            }
-            "|" => {
-                if span.consume("|") {
-                    span.new_token(TokenType::OrOr)
-                } else if span.consume(">") {
-                    span.new_token(TokenType::Pipe)
-                } else {
-                    span.err_token("expected || or |>")
-                }
-            }
-
-            _ => {
-                span.err_token("Unexpected character")
+                _ => return,
             }
         }
     }
 
+    pub fn scan_token(&mut self) -> Token {
+        self.skip_whitespace();
+        self.start = self.current; // Reset the self/scanner
 
-    fn scan_string(&self, span: &mut Span) -> Token {
+        if self.is_at_end() {
+            return Token::new(TokenType::EOF, "", self.line);
+        }
+
+        match self.advance() {
+            c if Scanner::is_alpha(c) => self.scan_identifier(),
+            c if Scanner::is_digit(c) => self.scan_number(),
+            
+            '(' => self.new_token(TokenType::LeftParen),
+            ')' => self.new_token(TokenType::RightParen),
+            '{' => self.new_token(TokenType::LeftBrace),
+            '}' => self.new_token(TokenType::RightBrace),
+            '[' => self.new_token(TokenType::LeftBracket),
+            ']' => self.new_token(TokenType::RightBracket),
+            ',' => self.new_token(TokenType::Comma),
+
+            '-' => self.new_token(TokenType::Minus),
+            '+' => self.new_token(TokenType::Plus),
+            ';' => self.new_token(TokenType::Semicolon),
+            '/' => self.new_token(TokenType::Slash),
+
+            '"' => self.scan_string(),
+
+            '*' => {
+                if self.char_iter.next_matches('>') {
+                    self.new_token(TokenType::Map)
+                } else {
+                    self.new_token(TokenType::Star)
+                }
+            }
+            '!' => {
+                if self.char_iter.next_matches('=') {
+                    self.new_token(TokenType::NEqual)
+                } else {
+                    self.new_token(TokenType::Bang)
+                }
+            }
+            '=' => {
+                if self.char_iter.next_matches('=') {
+                    self.new_token(TokenType::EqEqual)
+                } else {
+                    self.new_token(TokenType::Equal)
+                }
+            }
+            '<' => {
+                if self.char_iter.next_matches('=') {
+                    self.new_token(TokenType::LEqual)
+                } else {
+                    self.new_token(TokenType::Less)
+                }
+            }
+            '>' => {
+                if self.char_iter.next_matches('=') {
+                    self.new_token(TokenType::GEqual)
+                } else {
+                    self.new_token(TokenType::Greater)
+                }
+            }
+            '&' => {
+                if self.char_iter.next_matches('&') {
+                    self.new_token(TokenType::AndAnd)
+                } else if self.char_iter.next_matches('>') {
+                    self.new_token(TokenType::Reduce)
+                } else {
+                    self.err_token("expected &&")
+                }
+            }
+            '|' => {
+                if self.char_iter.next_matches('|') {
+                    self.new_token(TokenType::OrOr)
+                } else if self.char_iter.next_matches('>') {
+                    self.new_token(TokenType::Pipe)
+                } else {
+                    self.err_token("expected || or |>")
+                }
+            }
+
+            _ => self.err_token("Unexpected character"),
+        }
+    }
+
+    fn scan_string(&mut self) -> Token {
+        println!("scanning string");
         // Down the road, we'll want to support interpolation, but for right now, simple string parsing is good enough
-        while !span.is_at_end() && span.peek() != Some("\"") {
-            if span.peek() == Some("\n") { span.line += 1; }
-            span.advance();
+        while !self.is_at_end() && !self.char_iter.matches('"') {
+            if self.char_iter.matches('\n') { self.line += 1; }
+            self.advance();
         }
-        if span.is_at_end() { return span.err_token("Unterminated string"); }
-        span.advance();
+        if self.is_at_end() {
+            return self.err_token("Unterminated string");
+        }
+        self.advance(); // consume the "
 
         // +1 and -1 to account for the quote markers
-        Token::new(TokenType::String, span.cur_lexeme(), span.line)
+        Token::new(TokenType::String, &&self.code[self.start+1..self.current-1], self.line)
     }
 
-    fn try_number(&self, span: &mut Span) -> Option<Token> {
-        if span.peekc()?.is_digit(10){
-            self.scan_number(span)
-        } else {
-            None
-        }
-    }
-
-    fn scan_number(&self, span: &mut Span) -> Option<Token> {
-        while span.peekc().unwrap_or('_').is_digit(10) { span.advance(); }
-
-        if span.peek() == Some(".") && span.peeknthc(1).unwrap_or('_').is_digit(10) {
-            span.advance();
-            while span.peekc().unwrap_or('_').is_digit(10) { span.advance(); }
+    fn scan_number(&mut self) -> Token {
+        while self.char_iter.peek().is_digit(10) {
+            self.advance();
         }
 
-        Some(span.new_token(TokenType::Number))
+        if self.char_iter.matches('.') && self.char_iter.peek_next().is_digit(10) {
+            self.advance();
+            while self.char_iter.peek().is_digit(10) {
+                self.advance();
+            }
+        }
+
+        self.new_token(TokenType::Number)
     }
 
-    fn try_identifier(&self, span: &mut Span) -> Option<Token> {
-        if span.peekc()?.is_alphabetic() || span.peek() == Some("_") {
-            Some(self.scan_identifier(span))
-        } else { None }
+    fn is_alpha(c: char) -> bool {
+        println!("is_alpha: '{}'? {}", c, c.is_alphabetic());
+        c.is_alphabetic()
+    }
+    
+    fn is_digit(c: char) -> bool {
+        c.is_digit(10)
     }
 
-    fn scan_identifier(&self, span: &mut Span) -> Token {
-        let c = span.peekc().unwrap_or(' ');
-        while c.is_alphanumeric() ||
-            c.is_digit(10) ||
-            c == '_' { span.advance(); }
+    fn scan_identifier(&mut self) -> Token {
+        fn is_identifier_part(c: char) -> bool {
+            c.is_alphanumeric() || c.is_digit(10) || c == '_'
+        }
+        
+        while is_identifier_part(self.char_iter.peek()) {
+            self.advance();
+        }
 
-        let token_type = self.identifier_type(span);
-        span.new_token(token_type)
+        let token_type = self.identifier_type();
+        self.new_token(token_type)
     }
 
-    fn identifier_type(&self, span: &mut Span) -> TokenType {
-        match span.cur_lexeme() {
+    fn identifier_type(&self) -> TokenType {
+        match self.cur_lexeme() {
             // Keywords
             "if" => TokenType::If,
             "else" => TokenType::Else,
@@ -256,8 +250,37 @@ impl Scanner {
             "puts" => TokenType::Puts,
 
             // Okay, just a normal identifier
-            _ => TokenType::Identifier
+            _ => TokenType::Identifier,
         }
     }
+}
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn scan_string() {
+        let mut scanner = Scanner::new("\"hello world\"");
+        let token = scanner.scan_token();
+        assert_eq!(token.token_type, TokenType::String);
+        assert_eq!(token.lexeme, "hello world");
+    }   
+    
+    #[test]
+    fn scan_number() {
+        let mut scanner = Scanner::new("123");
+        let token = scanner.scan_token();
+        assert_eq!(token.token_type, TokenType::Number);
+        assert_eq!(token.lexeme, "123");
+    }
+    
+    #[test]
+    fn scan_identifier() {
+        let mut scanner = Scanner::new("hello");
+        let token = scanner.scan_token();
+        assert_eq!(token.token_type, TokenType::Identifier);
+        assert_eq!(token.lexeme, "hello");
+    }
 }
