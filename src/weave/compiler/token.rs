@@ -1,20 +1,69 @@
 use std::fmt::{Display, Formatter};
 
-pub struct Token<'src> {
+#[derive(PartialEq, Clone, Debug)]
+pub struct Token {
     pub token_type: TokenType,
-    pub lexeme: &'src str,
+    pub lexeme: Lexeme,
     pub line: usize
 }
 
-impl<'src> Display for Token<'src> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let out = format!("{}   ({:?})", self.lexeme, self.token_type);
-        write!(f, "{}", out)
+#[derive(PartialEq, Clone, Debug)]
+pub(crate) struct Lexeme {
+    start: usize,
+    end: usize,
+    txt: Option<String>
+}
+
+impl Lexeme {
+    pub fn new(start: usize, end: usize, txt: Option<String>) -> Lexeme {
+        Lexeme {
+            start,
+            end,
+            txt
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.end - self.start
+    }
+    
+    pub fn lexeme(&self) -> &str {
+        &self.txt.as_ref().unwrap()
     }
 }
 
-impl <'src> Token<'src> {
-    pub fn new(token_type: TokenType, lexeme: &'src str, line: usize) -> Token<'src> {
+impl Display for Lexeme {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.txt {
+            Some(txt) => {
+                write!(f, "{}", txt)
+            }
+            None => {
+                write!(f, "")
+            }
+        }
+    }
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}    {}", self.token_type, self.lexeme)
+    }
+}
+
+impl  Token {
+    
+    pub fn basic_token(token_type: TokenType, span: (usize, usize), line: usize) -> Token {
+        let lex = Lexeme::new(span.0, span.1, None);
+        Token::new(token_type, lex, line)
+    }
+    
+    pub fn text_token(token_type: TokenType, span: (usize, usize), lextext: &str, line: usize) -> Token {
+        let lex = Lexeme::new(span.0, span.1, Some(lextext.to_string()));
+        Token::new(token_type, lex, line)
+    }
+    
+    fn new(token_type: TokenType, lexeme: Lexeme, line: usize) -> Token {
         Token {
             token_type,
             lexeme,

@@ -73,11 +73,15 @@ impl<'a> Scanner<'a> {
     }
 
     pub fn err_token(&self, message: &'static str) -> Token {
-        Token::new(TokenType::ERROR, message, self.line)
+        Token::text_token(TokenType::ERROR, (self.start, self.current), message, self.line)
     }
 
-    pub fn new_token(&self, token_type: TokenType) -> Token {
-        Token::new(token_type, self.cur_lexeme(), self.line)
+    pub fn basic_token(&self, token_type: TokenType) -> Token {
+        Token::basic_token(token_type, (self.start, self.current), self.line)
+    }
+
+    pub fn text_token(&self, token_type: TokenType, lextext: &str) -> Token {
+        Token::text_token(token_type, (self.start, self.current), lextext, self.line)
     }
 
     fn skip_whitespace(&mut self) {
@@ -105,77 +109,77 @@ impl<'a> Scanner<'a> {
         self.start = self.current; // Reset the self/scanner
 
         if self.is_at_end() {
-            return Token::new(TokenType::EOF, "", self.line);
+            return Token::basic_token(TokenType::EOF, (self.start, self.current), self.line);
         }
 
         match self.advance() {
             c if Scanner::is_alpha(c) => self.scan_identifier(),
             c if Scanner::is_digit(c) => self.scan_number(),
-            
-            '(' => self.new_token(TokenType::LeftParen),
-            ')' => self.new_token(TokenType::RightParen),
-            '{' => self.new_token(TokenType::LeftBrace),
-            '}' => self.new_token(TokenType::RightBrace),
-            '[' => self.new_token(TokenType::LeftBracket),
-            ']' => self.new_token(TokenType::RightBracket),
-            ',' => self.new_token(TokenType::Comma),
 
-            '-' => self.new_token(TokenType::Minus),
-            '+' => self.new_token(TokenType::Plus),
-            ';' => self.new_token(TokenType::Semicolon),
-            '/' => self.new_token(TokenType::Slash),
+            '(' => self.basic_token(TokenType::LeftParen),
+            ')' => self.basic_token(TokenType::RightParen),
+            '{' => self.basic_token(TokenType::LeftBrace),
+            '}' => self.basic_token(TokenType::RightBrace),
+            '[' => self.basic_token(TokenType::LeftBracket),
+            ']' => self.basic_token(TokenType::RightBracket),
+            ',' => self.basic_token(TokenType::Comma),
+
+            '-' => self.basic_token(TokenType::Minus),
+            '+' => self.basic_token(TokenType::Plus),
+            ';' => self.basic_token(TokenType::Semicolon),
+            '/' => self.basic_token(TokenType::Slash),
 
             '"' => self.scan_string(),
 
             '*' => {
                 if self.char_iter.next_matches('>') {
-                    self.new_token(TokenType::Map)
+                    self.basic_token(TokenType::Map)
                 } else {
-                    self.new_token(TokenType::Star)
+                    self.basic_token(TokenType::Star)
                 }
             }
             '!' => {
                 if self.char_iter.next_matches('=') {
-                    self.new_token(TokenType::NEqual)
+                    self.basic_token(TokenType::NEqual)
                 } else {
-                    self.new_token(TokenType::Bang)
+                    self.basic_token(TokenType::Bang)
                 }
             }
             '=' => {
                 if self.char_iter.next_matches('=') {
-                    self.new_token(TokenType::EqEqual)
+                    self.basic_token(TokenType::EqEqual)
                 } else {
-                    self.new_token(TokenType::Equal)
+                    self.basic_token(TokenType::Equal)
                 }
             }
             '<' => {
                 if self.char_iter.next_matches('=') {
-                    self.new_token(TokenType::LEqual)
+                    self.basic_token(TokenType::LEqual)
                 } else {
-                    self.new_token(TokenType::Less)
+                    self.basic_token(TokenType::Less)
                 }
             }
             '>' => {
                 if self.char_iter.next_matches('=') {
-                    self.new_token(TokenType::GEqual)
+                    self.basic_token(TokenType::GEqual)
                 } else {
-                    self.new_token(TokenType::Greater)
+                    self.basic_token(TokenType::Greater)
                 }
             }
             '&' => {
                 if self.char_iter.next_matches('&') {
-                    self.new_token(TokenType::AndAnd)
+                    self.basic_token(TokenType::AndAnd)
                 } else if self.char_iter.next_matches('>') {
-                    self.new_token(TokenType::Reduce)
+                    self.basic_token(TokenType::Reduce)
                 } else {
                     self.err_token("expected &&")
                 }
             }
             '|' => {
                 if self.char_iter.next_matches('|') {
-                    self.new_token(TokenType::OrOr)
+                    self.basic_token(TokenType::OrOr)
                 } else if self.char_iter.next_matches('>') {
-                    self.new_token(TokenType::Pipe)
+                    self.basic_token(TokenType::Pipe)
                 } else {
                     self.err_token("expected || or |>")
                 }
@@ -198,7 +202,7 @@ impl<'a> Scanner<'a> {
         self.advance(); // consume the "
 
         // +1 and -1 to account for the quote markers
-        Token::new(TokenType::String, &&self.code[self.start+1..self.current-1], self.line)
+        self.text_token(TokenType::String, &self.code[self.start+1..self.current-1])
     }
 
     fn scan_number(&mut self) -> Token {
@@ -213,7 +217,7 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        self.new_token(TokenType::Number)
+        self.text_token(TokenType::Number, &self.code[self.start..self.current])
     }
 
     fn is_alpha(c: char) -> bool {
@@ -229,13 +233,13 @@ impl<'a> Scanner<'a> {
         fn is_identifier_part(c: char) -> bool {
             c.is_alphanumeric() || c.is_digit(10) || c == '_'
         }
-        
+
         while is_identifier_part(self.char_iter.peek()) {
             self.advance();
         }
 
         let token_type = self.identifier_type();
-        self.new_token(token_type)
+        self.text_token(token_type, &self.code[self.start..self.current])
     }
 
     fn identifier_type(&self) -> TokenType {
@@ -259,28 +263,28 @@ impl<'a> Scanner<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn scan_string() {
         let mut scanner = Scanner::new("\"hello world\"");
         let token = scanner.scan_token();
         assert_eq!(token.token_type, TokenType::String);
-        assert_eq!(token.lexeme, "hello world");
-    }   
-    
+        assert_eq!(token.lexeme.lexeme(), "hello world");
+    }
+
     #[test]
     fn scan_number() {
         let mut scanner = Scanner::new("123");
         let token = scanner.scan_token();
         assert_eq!(token.token_type, TokenType::Number);
-        assert_eq!(token.lexeme, "123");
+        assert_eq!(token.lexeme.lexeme(), "123");
     }
-    
+
     #[test]
     fn scan_identifier() {
         let mut scanner = Scanner::new("hello");
         let token = scanner.scan_token();
         assert_eq!(token.token_type, TokenType::Identifier);
-        assert_eq!(token.lexeme, "hello");
+        assert_eq!(token.lexeme.lexeme(), "hello");
     }
 }

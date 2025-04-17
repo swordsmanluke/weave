@@ -1,5 +1,5 @@
 use crate::weave::{Chunk, Op};
-use crate::weave::compiler::compile;
+use crate::weave::compiler::Compiler;
 use crate::weave::vm::traits::Disassemble;
 use crate::weave::vm::types::WeaveType;
 use crate::weave::vm::types::errors::OpResult;
@@ -39,20 +39,18 @@ pub struct VM {
 #[derive(Debug)]
 pub enum VMError {
     InvalidChunk,
-    InvalidInstruction,
-    InvalidOperand,
     InvalidOperandType,
+    CompilationError(String),
     InternalError(String)
 }
 
 impl VMError {
     pub fn exit_code(&self) -> i32 {
         match self {
-            VMError::InvalidChunk => 61,
-            VMError::InvalidInstruction => 62,
-            VMError::InvalidOperand => 63,
-            VMError::InvalidOperandType => 64,
-            VMError::InternalError(_) => 65,
+            VMError::InvalidChunk => 60,
+            VMError::InvalidOperandType => 62,
+            VMError::CompilationError(_) => 70,
+            VMError::InternalError(_) => 80,
         }
     }
 }
@@ -70,7 +68,12 @@ impl VM {
     }
 
     pub fn interpret(&mut self, source: &str) -> VMResult {
-        let chunk = compile(source);
+        let mut compiler = Compiler::new(source);
+        let chunk = match compiler.compile() {
+            Ok(c) => c,
+            Err(msg) => return Err(VMError::CompilationError(msg))
+        };
+        
         self.ip = Some(IP::new(chunk.code.as_ptr()));
         self.chunk = Some(chunk);
         self.run()
@@ -106,7 +109,7 @@ impl VM {
         [a, b]
     }
 
-    pub fn run(&mut self) -> VMResult {
+    pub fn run(&mut self) -> VMResult {        
         if self.ip.is_none() || self.chunk.is_none() {
             return Err(VMError::InvalidChunk);
         }
