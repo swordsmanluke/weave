@@ -1,3 +1,4 @@
+use std::ops::Add;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd)]
 pub enum Precedence {
@@ -12,6 +13,25 @@ pub enum Precedence {
     UNARY,       // ! -
     CALL,        // . ()
     PRIMARY
+}
+
+impl Precedence {
+    pub fn next(&self) -> Precedence {
+        use Precedence::*;
+        match self {
+            NONE => ASSIGNMENT,
+            ASSIGNMENT => OR,
+            OR => AND,
+            AND => EQUALITY,
+            EQUALITY => COMPARISON,
+            COMPARISON => TERM,
+            TERM => FACTOR,
+            FACTOR => UNARY,
+            UNARY => CALL,
+            CALL => PRIMARY,
+            PRIMARY => PRIMARY,
+        }
+    }
 }
 
 #[cfg(test)]

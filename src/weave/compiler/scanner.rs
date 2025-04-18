@@ -23,7 +23,6 @@ impl CharStream {
     pub fn advance(&mut self) -> char {
         let c = self.peek();
         self.idx += 1;
-        println!("advancing: {}", c);
         c
     }
 
@@ -226,7 +225,6 @@ impl Scanner {
     }
 
     fn is_alpha(c: char) -> bool {
-        println!("is_alpha: '{}'? {}", c, c.is_alphabetic());
         c.is_alphabetic()
     }
     

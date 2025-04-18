@@ -1,4 +1,6 @@
 use std::fmt::{Display, Formatter};
+use crate::weave::compiler::parse_rule::ParseRule;
+use crate::weave::compiler::precedence::Precedence;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Token {
@@ -110,4 +112,10 @@ pub enum TokenType {
     // END Keywords
     // Terminations
     ERROR, EOF,
+}
+
+impl TokenType {
+    pub fn precedence(&self) -> Precedence {
+        ParseRule::for_token(*self).precedence
+    }
 }
