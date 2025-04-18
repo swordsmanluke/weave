@@ -46,6 +46,15 @@ impl Display for WeaveType {
     }
 }
 
+impl PartialEq for WeaveType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (WeaveType::Number(a), WeaveType::Number(b)) => a == b,
+            _ => false
+        }
+    }
+}
+
 impl Neg for WeaveType {
     type Output = OpResult;
 

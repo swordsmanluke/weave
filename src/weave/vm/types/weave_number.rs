@@ -47,6 +47,20 @@ impl Display for WeaveNumber {
     }
 }
 
+impl PartialEq for WeaveNumber {
+    fn eq(&self, rhs: &Self) -> bool {
+        let a = self.to_shared_type(&rhs);
+        let b = rhs.to_shared_type(&self);
+
+        match (&a, &b) {
+            (WeaveNumber::UInt(a), WeaveNumber::UInt(b)) => a == b,
+            (WeaveNumber::Int(a), WeaveNumber::Int(b)) => a == b,
+            (WeaveNumber::Float(a), WeaveNumber::Float(b)) => a == b,
+            _ => false
+        }
+    }
+}
+
 impl Neg for WeaveNumber {
     type Output = Self;
 
@@ -81,6 +95,8 @@ impl Sub for &WeaveNumber {
     fn sub(self, rhs: Self) -> Self::Output {
         let a = self.to_shared_type(&rhs);
         let b = rhs.to_shared_type(&self);
+        
+        println!("{:?} - {:?}", a, b);
 
         match (&a, &b) {
             (WeaveNumber::UInt(a), WeaveNumber::UInt(b)) => WeaveNumber::UInt(a - b),

@@ -25,10 +25,6 @@ impl Lexeme {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.end - self.start
-    }
-    
     pub fn lexeme(&self) -> &str {
         &self.txt.as_ref().unwrap()
     }
@@ -71,10 +67,6 @@ impl  Token {
             lexeme,
             line
         }
-    }
-    
-    pub fn length(&self) -> usize {
-        self.lexeme.len()
     }
 }
 

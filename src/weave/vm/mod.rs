@@ -4,3 +4,4 @@ mod values;
 pub(crate) mod types;
 mod traits;
 pub mod vm;
+mod instruction_pointer;

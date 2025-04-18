@@ -1,4 +1,4 @@
-use crate::weave::vm::vm::{VM};
+use crate::weave::vm::vm::{VMError, VM};
 
 mod weave;
 use std::env;
@@ -39,7 +39,12 @@ fn repl() {
         match vm.interpret(&line) {
             Ok(r) => { println!("{}", r) },
             Err(e) => {
-                println!("Error: {:?}", e);
+                match &e {
+                    VMError::InternalError(msg) => println!("Internal Error: {}", msg),
+                    VMError::CompilationError(msg) => println!("Compilation Error: {}", msg),
+                    _ => println!("Error: {:?}", e),
+                }
+                exit(e.exit_code())
             },
         }
     }

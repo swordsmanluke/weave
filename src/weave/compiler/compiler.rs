@@ -38,8 +38,8 @@ impl Compiler {
             self.report_err(&self.chunk.disassemble("Chunk Dump"));
             return Err("Compilation error".to_string());
         }
-
-        Ok(Chunk::new())
+        
+        Ok(self.chunk.clone())
     }
 
     pub fn advance(&mut self) {
@@ -67,11 +67,6 @@ impl Compiler {
 
     fn current_chunk(&mut self) -> &mut Chunk {
         &mut self.chunk
-    }
-
-    fn emit_byte(&mut self, byte: u8) {
-        let line = self.line;
-        self.current_chunk().write(byte, line);
     }
 
     fn report_err(&mut self, message: &str) {

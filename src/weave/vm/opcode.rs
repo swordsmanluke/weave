@@ -2,6 +2,7 @@ use std::fmt::Write;
 use crate::weave::Chunk;
 use crate::weave::vm::traits::disassemble::Disassemble;
 
+#[derive(Debug, PartialEq)]
 pub enum Op {
     CONSTANT,  // Always 64 bit, but the type is variable
     NEGATE,
@@ -51,40 +52,40 @@ impl Disassemble for Op {
     fn disassemble(&self, offset: usize, chunk: &Chunk, f: &mut String) -> usize {
         match self {
             Op::RETURN => {
-                write!(f, "{0:04x}  {1}  RETURN", offset, chunk.line_str(offset)).unwrap();
+                writeln!(f, "{0:04x}  {1}  RETURN", offset, chunk.line_str(offset)).unwrap();
                 offset + 1  // Return our size - 1 byte
             },
             Op::NEGATE => {
-                write!(f, "{0:04x}  {1}  NEGATE", offset, chunk.line_str(offset)).unwrap();
+                writeln!(f, "{0:04x}  {1}  NEGATE", offset, chunk.line_str(offset)).unwrap();
                 offset + 1
             },
             Op::CONSTANT => {
-                write!(f, "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
+                writeln!(f, "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
                 // Next ,grab the following 8 bytes and convert them to a value... might need
                 // some tracking to do this right. Separate Opcodes for encoding [u]int|floats?
                 let mut offset = offset + 1; // Skip the opcode, already consumed
                 let idx = chunk.code[offset] as usize;
 
                 // Convert the next 8 bytes to a f64
-                let value = &chunk.constants.values[idx];
-                write!(f, "\t{0:04x}  {1}", idx, value).unwrap();
+                let value = &chunk.constants[idx];
+                writeln!(f, "\t{0:04x}  {1}", idx, value).unwrap();
                 offset += 1;
                 offset
             },
             Op::ADD => {
-                write!(f, "{0:04x}  {1}  ADD", offset, chunk.line_str(offset)).unwrap();
+                writeln!(f, "{0:04x}  {1}  ADD", offset, chunk.line_str(offset)).unwrap();
                 offset + 1
             }
             Op::SUB => {
-                write!(f, "{0:04x}  {1}  SUB", offset, chunk.line_str(offset)).unwrap();
+                writeln!(f, "{0:04x}  {1}  SUB", offset, chunk.line_str(offset)).unwrap();
                 offset + 1
             }
             Op::MUL => {
-                write!(f, "{0:04x}  {1}  MUL", offset, chunk.line_str(offset)).unwrap();
+                writeln!(f, "{0:04x}  {1}  MUL", offset, chunk.line_str(offset)).unwrap();
                 offset + 1
             }
             Op::DIV => {
-                write!(f, "{0:04x}  {1}  DIV", offset, chunk.line_str(offset)).unwrap();
+                writeln!(f, "{0:04x}  {1}  DIV", offset, chunk.line_str(offset)).unwrap();
                 offset + 1
             }
         }

@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd)]
 pub enum Precedence {
     NONE,
