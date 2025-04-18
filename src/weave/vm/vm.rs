@@ -68,7 +68,7 @@ impl VM {
     }
 
     pub fn interpret(&mut self, source: &str) -> VMResult {
-        let mut compiler = Compiler::new(source);
+        let mut compiler = Compiler::new(source, true);
         let chunk = match compiler.compile() {
             Ok(c) => c,
             Err(msg) => return Err(VMError::CompilationError(msg))

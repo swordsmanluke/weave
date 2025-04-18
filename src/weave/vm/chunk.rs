@@ -14,8 +14,13 @@ impl Chunk {
     pub fn new() -> Chunk {
         Chunk { code: vec![], constants: ValueArray::new(), lines: vec![] }
     }
+    
+    pub fn write(&mut self, b: u8, line: usize) {
+        self.code.push(b);
+        self.lines.push(line);
+    }
 
-    pub fn write(&mut self, op: Op, line: usize) {
+    pub fn write_op(&mut self, op: Op, line: usize) {
         self._write(&op.bytecode(), line);
     }
 
@@ -31,13 +36,13 @@ impl Chunk {
     }
 
     pub fn add_constant(&mut self, value: WeaveType, line: usize) -> usize {
-        self.write(Op::CONSTANT, line);
+        self.write_op(Op::CONSTANT, line);
         self.constants.push(value);
         let idx = (self.constants.values.len() - 1) as u8;
         self._write(&vec![idx], line);
         idx as usize
     }
-    
+
     pub fn get_constant(&self, idx: usize) -> &WeaveType {
         &self.constants.values[idx]
     }

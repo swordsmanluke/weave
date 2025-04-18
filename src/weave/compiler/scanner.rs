@@ -1,58 +1,63 @@
 use crate::weave::compiler::token::{Token, TokenType};
-use std::str::Chars;
 
-struct CharStream<'a> {
-    stream: Chars<'a>,
-    cur: Option<char>,
-    next: Option<char>,
+struct CharStream {
+    chars: Vec<char>,
+    idx: usize,
 }
 
-impl<'a> CharStream<'a> {
-    fn new(code: &'a str) -> CharStream<'a> {
-        let mut stream = code.chars();
-        let cur = stream.next();
-        let next = stream.next();
-        CharStream { stream, cur, next }
+impl CharStream {
+    fn new(string: &String) -> CharStream {
+        let idx = 0;
+        let chars = string.chars().collect::<Vec<char>>();
+        CharStream { chars, idx }
     }
 
     pub fn peek(&self) -> char {
-        self.cur.unwrap_or('\0')
+        self.or_not(self.chars.get(self.idx))
     }
     
     pub fn peek_next(&self) -> char { 
-        self.next.unwrap_or('\0')
+        self.or_not(self.chars.get(self.idx + 1))
     }
 
     pub fn advance(&mut self) -> char {
         let c = self.peek();
+        self.idx += 1;
         println!("advancing: {}", c);
-        self.cur = self.next;
-        self.next = self.stream.next();
         c
     }
 
     pub fn matches(&self, c: char) -> bool {
-        self.cur == Some(c)
+        self.peek() == c
     }
 
     pub fn next_matches(&self, c: char) -> bool {
-        self.next == Some(c)
+        self.peek_next() == c
+    }
+
+    fn or_not(&self, optc: Option<&char>) -> char {
+        match optc {
+            Some(c) => *c,
+            None => '\0',
+        }
     }
 }
 
-pub struct Scanner<'a> {
-    code: &'a str,
-    char_iter: CharStream<'a>,
+pub struct Scanner {
+    code: String,
+    char_iter: CharStream,
     start: usize,
     current: usize,
     line: usize,
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(code: &'a str) -> Scanner<'a> {
+impl Scanner {
+    pub fn new(code: &str) -> Scanner {
+        let code = code.to_string();
+        let code2 = code.clone();
         Scanner {
             code,
-            char_iter: CharStream::new(&code),
+            char_iter: CharStream::new(&code2),
             start: 0,
             current: 0,
             line: 1,

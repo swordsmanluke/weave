@@ -1,13 +1,13 @@
 use crate::weave::compiler::scanner::Scanner;
 use crate::weave::compiler::token::{Token, TokenType};
 
-pub(crate) struct Parser<'src> {
-    scanner: Scanner<'src>,
+pub(crate) struct Parser {
+    scanner: Scanner,
     tokens: Vec<Token>,
 }
 
-impl <'src> Parser<'src> {
-    pub fn new(code: &'src str) -> Parser<'src> {
+impl  Parser {
+    pub fn new(code: &str) -> Parser {
         Parser {
             scanner: Scanner::new(code),
             tokens: Vec::new(),
@@ -21,7 +21,7 @@ impl <'src> Parser<'src> {
     pub fn next_is(&self, token_type: TokenType) -> bool {
         self.peek_next_type() == token_type
     }
-    
+
     pub fn peek(&self) -> Token {
         self.tokens.get(0).cloned().unwrap_or(Token::basic_token(TokenType::EOF, (0, 0), 0))
     }
@@ -35,7 +35,7 @@ impl <'src> Parser<'src> {
     }
 }
 
-impl Iterator for Parser<'_> {
+impl Iterator for Parser {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {

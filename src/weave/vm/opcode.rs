@@ -41,6 +41,12 @@ impl Op {
     }
 }
 
+impl From<u8> for Op {
+    fn from(byte: u8) -> Op {
+        Op::at(byte)
+    }
+}
+
 impl Disassemble for Op {
     fn disassemble(&self, offset: usize, chunk: &Chunk, f: &mut String) -> usize {
         match self {
