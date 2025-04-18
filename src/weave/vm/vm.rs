@@ -150,10 +150,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_basic_add() {
+    fn test_basic_math() {
         let mut vm = VM::new(true);
-        vm.interpret("5 + 2 * 3").unwrap();
-        assert_eq!(vm.stack.len(), 1);
-        assert_eq!(vm.stack[0], WeaveType::from(2.0));
+        let res = vm.interpret("5 + 2 * 3");
+        assert_eq!(vm.stack.len(), 0);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(11.0));
+    }
+    
+    #[test]
+    fn test_parenthesis() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("(5 + 2) * 3");
+        assert_eq!(vm.stack.len(), 0);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(21.0));
     }
 }
