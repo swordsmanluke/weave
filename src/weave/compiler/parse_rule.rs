@@ -20,7 +20,7 @@ impl ParseRule {
     pub fn for_token(token_type: TokenType) -> ParseRule {
         match token_type {
             // No precedence
-            TokenType::LeftParen => ParseRuleBuilder::p_none().infix(Compiler::grouping).rule,
+            TokenType::LeftParen => ParseRuleBuilder::p_none().prefix(Compiler::grouping).rule,
             TokenType::RightParen => ParseRule::new(),
             TokenType::LeftBrace => ParseRule::new(),
             TokenType::RightBrace => ParseRule::new(),

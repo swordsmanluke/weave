@@ -104,7 +104,7 @@ impl Compiler {
 
         match ParseRule::for_token(self.parser.previous().token_type).prefix {
             Some(prefix) => prefix(self), // There is a prefix method - , call it
-            None => self.report_err("Expected expression"),
+            None => self.report_err(&format!("Expected prefix expression for token {}", self.parser.previous())),
         }
 
         while precedence <= self.parser.peek().token_type.precedence() {
