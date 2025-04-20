@@ -79,7 +79,7 @@ impl Disassemble for Op {
     fn disassemble(&self, offset: usize, chunk: &Chunk, f: &mut String) -> usize {
         match self {
             Op::CONSTANT => {
-                writeln!(f, "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
+                write!(f, "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
                 // Next ,grab the following 8 bytes and convert them to a value... might need
                 // some tracking to do this right. Separate Opcodes for encoding [u]int|floats?
                 let mut offset = offset + 1; // Skip the opcode, already consumed
