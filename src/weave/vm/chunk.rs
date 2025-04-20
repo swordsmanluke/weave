@@ -2,7 +2,6 @@ use std::fmt::{Write};
 use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;
 use crate::weave::vm::types::WeaveType;
-use crate::weave::vm::values::ValueArray;
 
 #[derive(Clone)]
 pub struct Chunk {

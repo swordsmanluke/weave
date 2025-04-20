@@ -1,4 +1,3 @@
-use std::slice::Iter;
 use crate::weave::{Chunk, Op};
 use crate::weave::compiler::Compiler;
 use crate::weave::vm::instruction_pointer::IP;
@@ -16,20 +15,17 @@ pub struct VM {
 #[derive(Debug)]
 pub enum VMError {
     InvalidChunk,
-    InvalidOperandType,
     CompilationError(String),
-    RuntimeError{line: usize, msg: String},
-    InternalError(String)
+    RuntimeError{line: usize, msg: String}
 }
 
 impl VMError {
     pub fn exit_code(&self) -> i32 {
         match self {
             VMError::InvalidChunk => 60,
-            VMError::InvalidOperandType => 62,
             VMError::CompilationError(_) => 70,
-            VMError::RuntimeError{..} => 75,
-            VMError::InternalError(_) => 80,
+            // Probably unnecessary to exit from RuntimeErrors, but here's the code if you want
+            VMError::RuntimeError{..} => 80,  
         }
     }
 }
@@ -108,10 +104,6 @@ impl VM {
             return Err(VMError::InvalidChunk);
         }
         
-        fn read(ip: &mut Iter<u8>) -> u8 {
-            match ip.next() { Some(v) => *v, None => 0 }
-        }
-
         let mut ip = IP::new(&self.chunk.as_ref().unwrap().code, true);
 
         loop { // until ip offset > chunk size

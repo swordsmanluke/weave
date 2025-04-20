@@ -79,7 +79,7 @@ impl Add for WeaveType {
             }
         }
 
-        Err(format!("Cannot add '{}'", self))
+        Err(format!("Cannot add '{}' and '{}'", self, rhs))
     }
 }
 

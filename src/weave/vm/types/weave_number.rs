@@ -40,7 +40,7 @@ impl From<i64> for WeaveNumber{
 impl Display for WeaveNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WeaveNumber::Float(n) => write!(f, "{:02}", n),
+            WeaveNumber::Float(n) => write!(f, "{:.2}", n),
             WeaveNumber::Int(n) => write!(f, "{}", n),
             WeaveNumber::UInt(n) => write!(f, "{}", n),
         }

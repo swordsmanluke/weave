@@ -43,7 +43,6 @@ impl Compiler {
     }
 
     pub fn advance(&mut self) {
-        if self.debug_mode { println!("Calling advance"); }
         loop {
             if let Some(token) = self.parser.next() {
                 match token.token_type {
@@ -91,7 +90,7 @@ impl Compiler {
     }
 
     fn print_progress(&mut self) {
-        if self.debug_mode { println!("  - Peek: {}\n  - Prev: {}", self.parser.peek(), self.parser.previous()); }
+        if self.debug_mode { println!("  - Peek: {}\n  - Prev: {}\n", self.parser.peek(), self.parser.previous()); }
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) {
@@ -138,9 +137,7 @@ impl Compiler {
         if self.debug_mode {
             println!("compiling literal @ {}", self.parser.previous());
         }
-        let value = self.parser.previous().lexeme.lexeme().to_string();
-        let ty = self.parser.previous().token_type;
-        match ty {
+        match self.parser.previous().token_type {
             TokenType::True => self.emit_opcode(Op::TRUE),
             TokenType::False => self.emit_opcode(Op::FALSE),
             _ => unreachable!("Not a literal"),

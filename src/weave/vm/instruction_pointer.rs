@@ -1,4 +1,3 @@
-use std::slice::Iter;
 
 pub(crate) struct IP {
     pub ip: usize,
@@ -34,11 +33,6 @@ impl IP {
         (self.ip as isize + offset) as usize 
     }
     
-    fn advance(&mut self) {
-        self.ip += 1;
-        self.debug(&format!("IP (ADV) -> {:0x}", self.ip));
-    }
-
     fn debug(&self, msg: &str) {
         if self.debug_mode { println!("{}", msg); }
     }

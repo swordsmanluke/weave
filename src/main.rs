@@ -40,7 +40,10 @@ fn repl() {
             Ok(r) => { println!("{}", r) },
             Err(e) => {
                 match &e {
-                    VMError::InternalError(msg) => println!("Internal Error: {}", msg),
+                    VMError::RuntimeError{line, msg} => {
+                        println!("[line {}] {}", line, msg);
+                        continue
+                    },
                     VMError::CompilationError(msg) => println!("Compilation Error: {}", msg),
                     _ => println!("Error: {:?}", e),
                 }
