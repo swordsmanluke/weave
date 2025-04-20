@@ -10,6 +10,7 @@ pub enum WeaveType {
     None,
     Boolean(bool),
     Number(WeaveNumber),
+    String(String),
 }
 
 impl WeaveType {
@@ -17,6 +18,7 @@ impl WeaveType {
         match self {
             WeaveType::None => false,
             WeaveType::Boolean(b) => *b,
+            WeaveType::String(s) => !s.is_empty(), 
             // TODO: Empty containers are falsey
             _ => true,
         }
@@ -51,6 +53,20 @@ impl From<bool> for WeaveType {
     fn from(value: bool) -> Self {
         WeaveType::Boolean(value)
     }
+}
+
+impl From<String> for WeaveType {
+    fn from(value: String) -> Self {
+        // TODO: handle escapes, etc
+        WeaveType::String(value)
+    }
+} 
+
+impl From<&str> for WeaveType {
+    fn from(value: &str) -> Self {
+        // TODO: handle escapes, etc
+        WeaveType::String(value.to_string())
+    }
 } 
 
 impl Display for WeaveType {
@@ -58,6 +74,7 @@ impl Display for WeaveType {
         match self {
             WeaveType::Number(n) => write!(f, "{}", n),
             WeaveType::Boolean(b) => write!(f, "{}", b),
+            WeaveType::String(s) => write!(f, "{}", s),  
             WeaveType::None => {write!(f, "")}
         }
     }
@@ -67,6 +84,7 @@ impl PartialEq for WeaveType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (WeaveType::Number(a), WeaveType::Number(b)) => a == b,
+            (WeaveType::String(a), WeaveType::String(b)) => a == b,
             (WeaveType::Boolean(a), WeaveType::Boolean(b)) => a == b,
             _ => false
         }
@@ -77,6 +95,7 @@ impl PartialOrd for WeaveType {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
             (WeaveType::Number(a), WeaveType::Number(b)) => a.partial_cmp(b),
+            (WeaveType::String(a), WeaveType::String(b)) => a.partial_cmp(b),
             _ => None
         }
     }
@@ -110,6 +129,7 @@ impl Add for WeaveType {
     fn add(self, rhs: Self) -> Self::Output {
         match (&self, &rhs) {
             (WeaveType::Number(a), WeaveType::Number(b)) => Ok(WeaveType::Number(a + b)),
+            (WeaveType::String(a), WeaveType::String(b)) => Ok(WeaveType::String(format!("{}{}", a, b))),
             _ => Err(format!("Cannot add '{}' and '{}'", self, rhs))
         }
     }

@@ -198,6 +198,17 @@ impl Compiler {
         self.current_chunk()
             .add_constant(WeaveType::Number(value.into()), line);
     }
+    
+    pub fn string(&mut self) {
+        if self.debug_mode { println!("compiling string @ {}", self.parser.previous()); }
+        let value = self.parser.previous().lexeme.lexeme().to_string();
+        self.emit_string(value);
+    }
+    
+    fn emit_string(&mut self, value: String) {
+        let line = self.line;
+        self.current_chunk().add_constant(WeaveType::String(value), line);
+    }
 
     fn emit_opcode(&mut self, op: Op) {
         let line = self.line;

@@ -45,24 +45,22 @@ impl ParseRule {
             TokenType::Slash => ParseRuleBuilder::p_factor().infix(Compiler::binary).rule,
             TokenType::Star => ParseRuleBuilder::p_factor().infix(Compiler::binary).rule,
 
-            // Literal
+            // Literals
+            TokenType::True => ParseRuleBuilder::p_none().prefix(Compiler::literal).rule,
+            TokenType::False => ParseRuleBuilder::p_none().prefix(Compiler::literal).rule,
             TokenType::Number => ParseRuleBuilder::p_none().prefix(Compiler::number).rule,
+            TokenType::String => ParseRuleBuilder::p_none().prefix(Compiler::string).rule,
 
             // TODO
             TokenType::AndAnd => ParseRule::new(),
             TokenType::OrOr => ParseRule::new(),
-
             TokenType::Pipe => ParseRule::new(),
             TokenType::Map => ParseRule::new(),
             TokenType::Reduce => ParseRule::new(),
             TokenType::Identifier => ParseRule::new(),
-            TokenType::String => ParseRule::new(),
-            
             TokenType::Container => ParseRule::new(),
             TokenType::If => ParseRule::new(),
             TokenType::Else => ParseRule::new(),
-            TokenType::True => ParseRuleBuilder::p_none().prefix(Compiler::literal).rule,
-            TokenType::False => ParseRuleBuilder::p_none().prefix(Compiler::literal).rule,
             TokenType::FN => ParseRule::new(),
             TokenType::Return => ParseRule::new(),
             TokenType::Puts => ParseRule::new(),
