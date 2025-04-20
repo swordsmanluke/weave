@@ -128,6 +128,7 @@ impl Compiler {
         self.parse_precedence(Precedence::UNARY);
 
         match operator {
+            TokenType::Bang => self.emit_opcode(Op::NOT),
             TokenType::Minus => self.emit_opcode(Op::NEGATE),
             _ => unreachable!("Not a unary operator"),
         }
@@ -159,6 +160,21 @@ impl Compiler {
             TokenType::Minus => self.emit_opcode(Op::SUB),
             TokenType::Slash => self.emit_opcode(Op::DIV),
             TokenType::Star => self.emit_opcode(Op::MUL),
+            TokenType::Greater => self.emit_opcode(Op::GREATER),
+            TokenType::Less => self.emit_opcode(Op::LESS),
+            TokenType::EqEqual => self.emit_opcode(Op::EQUAL),
+            TokenType::GEqual => {
+                self.emit_opcode(Op::LESS);
+                self.emit_opcode(Op::NOT)
+            },
+            TokenType::LEqual => {
+                self.emit_opcode(Op::GREATER);
+                self.emit_opcode(Op::NOT)
+            },
+            TokenType::NEqual => {
+                self.emit_opcode(Op::EQUAL);
+                self.emit_opcode(Op::NOT)
+            }
             _ => unreachable!("Not a binary operator"), // Actually, there are several more coming.
         };
     }

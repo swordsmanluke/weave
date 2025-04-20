@@ -4,14 +4,27 @@ use crate::weave::vm::traits::disassemble::Disassemble;
 
 #[derive(Debug, PartialEq)]
 pub enum Op {
+    // Numeric Constants
+    CONSTANT,  // TODO: Always 64 bit double right now. Fix that.
+    
+    // Boolean
     TRUE,
     FALSE,
-    CONSTANT,  // Always 64 bit, but the type is variable
+    NOT,
+    
+    // Comparison
+    GREATER,
+    LESS,
+    EQUAL,
+    
+    // Arithmetic
     NEGATE,
     ADD,
     SUB,
     MUL,
     DIV,
+    
+    // Control
     RETURN,
 }
 
@@ -26,7 +39,11 @@ impl Op {
             Op::MUL => vec![5],
             Op::DIV => vec![6],
             Op::TRUE => vec![7],
-            Op::FALSE => vec![8]
+            Op::FALSE => vec![8],
+            Op::NOT => vec![9],
+            Op::GREATER => vec![10],
+            Op::LESS => vec![11],
+            Op::EQUAL => vec![12],
         }
     }
 
@@ -42,6 +59,10 @@ impl Op {
             6 => Op::DIV,
             7 => Op::TRUE,
             8 => Op::FALSE,
+            9 => Op::NOT,
+            10 => Op::GREATER,
+            11 => Op::LESS,
+            12 => Op::EQUAL,
 
             _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.
         }
@@ -57,14 +78,6 @@ impl From<u8> for Op {
 impl Disassemble for Op {
     fn disassemble(&self, offset: usize, chunk: &Chunk, f: &mut String) -> usize {
         match self {
-            Op::RETURN => {
-                writeln!(f, "{0:04x}  {1}  RETURN", offset, chunk.line_str(offset)).unwrap();
-                offset + 1  // Return our size - 1 byte
-            },
-            Op::NEGATE => {
-                writeln!(f, "{0:04x}  {1}  NEGATE", offset, chunk.line_str(offset)).unwrap();
-                offset + 1
-            },
             Op::CONSTANT => {
                 writeln!(f, "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
                 // Next ,grab the following 8 bytes and convert them to a value... might need
@@ -78,28 +91,8 @@ impl Disassemble for Op {
                 offset += 1;
                 offset
             },
-            Op::ADD => {
-                writeln!(f, "{0:04x}  {1}  ADD", offset, chunk.line_str(offset)).unwrap();
-                offset + 1
-            }
-            Op::SUB => {
-                writeln!(f, "{0:04x}  {1}  SUB", offset, chunk.line_str(offset)).unwrap();
-                offset + 1
-            }
-            Op::MUL => {
-                writeln!(f, "{0:04x}  {1}  MUL", offset, chunk.line_str(offset)).unwrap();
-                offset + 1
-            }
-            Op::DIV => {
-                writeln!(f, "{0:04x}  {1}  DIV", offset, chunk.line_str(offset)).unwrap();
-                offset + 1
-            }
-            Op::TRUE => {
-                writeln!(f, "{0:04x}  {1}  TRUE", offset, chunk.line_str(offset)).unwrap();
-                offset + 1
-            }
-            Op::FALSE => {
-                writeln!(f, "{0:04x}  {1}  FALSE", offset, chunk.line_str(offset)).unwrap();
+            op => {
+                writeln!(f, "{:04x}  {}  {:?}", offset, chunk.line_str(offset), op).unwrap();
                 offset + 1
             }
         }

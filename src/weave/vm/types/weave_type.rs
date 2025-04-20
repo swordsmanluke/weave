@@ -1,6 +1,6 @@
 
 use std::fmt::Display;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Not, Sub};
 use crate::weave::vm::types::weave_number::WeaveNumber;
 use crate::weave::vm::types::errors::OpResult;
 
@@ -10,6 +10,17 @@ pub enum WeaveType {
     None,
     Boolean(bool),
     Number(WeaveNumber),
+}
+
+impl WeaveType {
+    pub fn truthy(&self) -> bool {
+        match self {
+            WeaveType::None => false,
+            WeaveType::Boolean(b) => *b,
+            // TODO: Empty containers are falsey
+            _ => true,
+        }
+    }
 }
 
 impl From<f64> for WeaveType {
@@ -36,6 +47,12 @@ impl From<u64> for WeaveType {
     }
 }
 
+impl From<bool> for WeaveType {
+    fn from(value: bool) -> Self {
+        WeaveType::Boolean(value)
+    }
+} 
+
 impl Display for WeaveType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -55,6 +72,26 @@ impl PartialEq for WeaveType {
         }
     }
 }
+
+impl PartialOrd for WeaveType {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (WeaveType::Number(a), WeaveType::Number(b)) => a.partial_cmp(b),
+            _ => None
+        }
+    }
+} 
+
+impl Not for WeaveType {
+    type Output = OpResult;
+
+    fn not(self) -> Self::Output {
+        match self {
+            WeaveType::Boolean(b) => Ok(WeaveType::Boolean(!b)),
+            _ => Err(format!("Cannot negate '{self}'"))
+        }
+    }
+} 
 
 impl Neg for WeaveType {
     type Output = OpResult;

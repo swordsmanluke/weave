@@ -61,6 +61,20 @@ impl PartialEq for WeaveNumber {
     }
 }
 
+impl PartialOrd for WeaveNumber {
+    fn partial_cmp(&self, rhs: &Self) -> Option<std::cmp::Ordering> {
+        let a = self.to_shared_type(&rhs);
+        let b = rhs.to_shared_type(&self);
+
+        match (&a, &b) {
+            (WeaveNumber::UInt(a), WeaveNumber::UInt(b)) => a.partial_cmp(b),
+            (WeaveNumber::Int(a), WeaveNumber::Int(b)) => a.partial_cmp(b),
+            (WeaveNumber::Float(a), WeaveNumber::Float(b)) => a.partial_cmp(b),
+            _ => unreachable!("Can't compare {} and {} - but you shouldn't be here", a, b),
+        }
+    }
+}
+
 impl Neg for WeaveNumber {
     type Output = Self;
 

@@ -148,6 +148,24 @@ impl VM {
                 }
                 Op::TRUE => { self._push(Ok(WeaveType::Boolean(true)))?; }
                 Op::FALSE => { self._push(Ok(WeaveType::Boolean(false)))?; }
+                Op::NOT => {
+                    // Everything is truthy in Weave, so we just need to negate 
+                    // the top value's "truthiness"
+                    let val = WeaveType::Boolean(!self._pop().truthy());
+                    self._push(Ok(val))?; 
+                }
+                Op::GREATER => {
+                    let [a,b] = self._poppop();
+                    self._push(Ok(WeaveType::Boolean(a > b)))?;
+                }
+                Op::LESS => {
+                    let [a,b] = self._poppop();
+                    self._push(Ok(WeaveType::Boolean(a < b)))?;
+                }
+                Op::EQUAL => {
+                    let [a,b] = self._poppop();
+                    self._push(Ok(WeaveType::Boolean(a == b)))?;
+                }
             }
         }
     }

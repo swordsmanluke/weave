@@ -31,6 +31,7 @@ impl CharStream {
     }
 
     pub fn next_matches(&self, c: char) -> bool {
+        println!("scanner: checking for {:?} - next is {}", c, self.peek_next());
         self.peek_next() == c
     }
 
@@ -81,10 +82,12 @@ impl Scanner {
     }
 
     pub fn basic_token(&self, token_type: TokenType) -> Token {
+        println!("scanner emitting {:?}", token_type);
         Token::basic_token(token_type, (self.start, self.current), self.line)
     }
 
     pub fn text_token(&self, token_type: TokenType, lextext: &str) -> Token {
+        println!("scanner emitting {:?}: {}", token_type, lextext);
         Token::text_token(token_type, (self.start, self.current), lextext, self.line)
     }
 
@@ -109,7 +112,10 @@ impl Scanner {
     }
 
     pub fn scan_token(&mut self) -> Token {
+        println!("scanner: Scanning next token");
+        print!("scanner: Skipping whitespace @ {}-", self.current);
         self.skip_whitespace();
+        println!("{}", self.current);
         self.start = self.current; // Reset the self/scanner
 
         if self.is_at_end() {
@@ -136,53 +142,53 @@ impl Scanner {
             '"' => self.scan_string(),
 
             '*' => {
-                if self.char_iter.next_matches('>') {
+                if self.consume('>') {
                     self.basic_token(TokenType::Map)
                 } else {
                     self.basic_token(TokenType::Star)
                 }
             }
             '!' => {
-                if self.char_iter.next_matches('=') {
+                if self.consume('=') {
                     self.basic_token(TokenType::NEqual)
                 } else {
                     self.basic_token(TokenType::Bang)
                 }
             }
             '=' => {
-                if self.char_iter.next_matches('=') {
+                if self.consume('=') {
                     self.basic_token(TokenType::EqEqual)
                 } else {
                     self.basic_token(TokenType::Equal)
                 }
             }
             '<' => {
-                if self.char_iter.next_matches('=') {
+                if self.consume('=') {
                     self.basic_token(TokenType::LEqual)
                 } else {
                     self.basic_token(TokenType::Less)
                 }
             }
             '>' => {
-                if self.char_iter.next_matches('=') {
+                if self.consume('=') {
                     self.basic_token(TokenType::GEqual)
                 } else {
                     self.basic_token(TokenType::Greater)
                 }
             }
             '&' => {
-                if self.char_iter.next_matches('&') {
+                if self.consume('&') {
                     self.basic_token(TokenType::AndAnd)
-                } else if self.char_iter.next_matches('>') {
+                } else if self.consume('>') {
                     self.basic_token(TokenType::Reduce)
                 } else {
                     self.err_token("expected &&")
                 }
             }
             '|' => {
-                if self.char_iter.next_matches('|') {
+                if self.consume('|') {
                     self.basic_token(TokenType::OrOr)
-                } else if self.char_iter.next_matches('>') {
+                } else if self.consume('>') {
                     self.basic_token(TokenType::Pipe)
                 } else {
                     self.err_token("expected || or |>")
@@ -191,6 +197,11 @@ impl Scanner {
 
             _ => self.err_token("Unexpected character"),
         }
+    }
+
+    fn consume(&mut self, c: char) -> bool {
+        if self.char_iter.matches(c) { self.advance(); true }
+        else { false }
     }
 
     fn scan_string(&mut self) -> Token {
