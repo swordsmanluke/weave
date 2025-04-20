@@ -72,6 +72,7 @@ impl VM {
     }
 
     fn _push(&mut self, value: OpResult) -> VMResult {
+        // TODO: This is the where "malloc" would be in C
         self.debug(&format!("Pushing: {:?} to Stack", value));
         // If we encountered an error in performing an action, we may need to raise an error.
         // We can handle most of that here to make everyone else' lives easier - just return
@@ -86,6 +87,8 @@ impl VM {
     }
 
     fn _pop(&mut self) -> WeaveType {
+        // TODO: This is _nearly_ where the "free" would be in C - basically as soon as the
+        //       value returned here is dropped, it should be freed 
         self.stack.pop().unwrap_or(WeaveType::None)
     }
 

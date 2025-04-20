@@ -11,8 +11,16 @@ Iterable data sources so we don't have to hold a whole file in memory at once
 
 ## Builtins
 
-### String/Number formatting
+### Number formatting
 `printf("%0.2f", 3.14159) // something like this`
+
+### String / Container helpers
+- len
+- split
+- join
+- changing case
+- regex
+- indexing
 
 ### Network access functions
 Open sockets, rw from/to sockets
