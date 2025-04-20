@@ -10,6 +10,7 @@ use crate::weave::vm::types::errors::OpResult;
 #[derive(Debug, Clone)]
 pub enum WeaveType {
     None,
+    Boolean(bool),
     Number(WeaveNumber),
 }
 
@@ -41,6 +42,7 @@ impl Display for WeaveType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             WeaveType::Number(n) => write!(f, "{}", n),
+            WeaveType::Boolean(b) => write!(f, "{}", b),
             WeaveType::None => {write!(f, "")}
         }
     }

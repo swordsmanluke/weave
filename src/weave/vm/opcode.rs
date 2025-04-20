@@ -4,6 +4,8 @@ use crate::weave::vm::traits::disassemble::Disassemble;
 
 #[derive(Debug, PartialEq)]
 pub enum Op {
+    TRUE,
+    FALSE,
     CONSTANT,  // Always 64 bit, but the type is variable
     NEGATE,
     ADD,
@@ -22,7 +24,9 @@ impl Op {
             Op::ADD => vec![3],
             Op::SUB => vec![4],
             Op::MUL => vec![5],
-            Op::DIV => vec![6]
+            Op::DIV => vec![6],
+            Op::TRUE => vec![7],
+            Op::FALSE => vec![8]
         }
     }
 
@@ -36,6 +40,8 @@ impl Op {
             4 => Op::SUB,
             5 => Op::MUL,
             6 => Op::DIV,
+            7 => Op::TRUE,
+            8 => Op::FALSE,
 
             _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.
         }
@@ -86,6 +92,14 @@ impl Disassemble for Op {
             }
             Op::DIV => {
                 writeln!(f, "{0:04x}  {1}  DIV", offset, chunk.line_str(offset)).unwrap();
+                offset + 1
+            }
+            Op::TRUE => {
+                writeln!(f, "{0:04x}  {1}  TRUE", offset, chunk.line_str(offset)).unwrap();
+                offset + 1
+            }
+            Op::FALSE => {
+                writeln!(f, "{0:04x}  {1}  FALSE", offset, chunk.line_str(offset)).unwrap();
                 offset + 1
             }
         }

@@ -133,6 +133,19 @@ impl Compiler {
             _ => unreachable!("Not a unary operator"),
         }
     }
+    
+    pub fn literal(&mut self) {
+        if self.debug_mode {
+            println!("compiling literal @ {}", self.parser.previous());
+        }
+        let value = self.parser.previous().lexeme.lexeme().to_string();
+        let ty = self.parser.previous().token_type;
+        match ty {
+            TokenType::True => self.emit_opcode(Op::TRUE),
+            TokenType::False => self.emit_opcode(Op::FALSE),
+            _ => unreachable!("Not a literal"),
+        }
+    }
 
     pub(crate) fn binary(&mut self) {
         if self.debug_mode { 

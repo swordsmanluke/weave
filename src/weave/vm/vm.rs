@@ -9,6 +9,7 @@ use crate::weave::vm::types::errors::OpResult;
 pub struct VM {
     chunk: Option<Chunk>,
     stack: Vec<WeaveType>,
+    instruction_counter: usize,
     pub debug_mode: bool,
 }
 
@@ -17,6 +18,7 @@ pub enum VMError {
     InvalidChunk,
     InvalidOperandType,
     CompilationError(String),
+    RuntimeError{line: usize, msg: String},
     InternalError(String)
 }
 
@@ -26,6 +28,7 @@ impl VMError {
             VMError::InvalidChunk => 60,
             VMError::InvalidOperandType => 62,
             VMError::CompilationError(_) => 70,
+            VMError::RuntimeError{..} => 75,
             VMError::InternalError(_) => 80,
         }
     }
@@ -38,6 +41,7 @@ impl VM {
         VM {
             chunk: None,
             stack: Vec::with_capacity(255),
+            instruction_counter: 0,
             debug_mode
         }
     }
@@ -53,7 +57,18 @@ impl VM {
         self.debug("Interpreting...");
         self.debug(&format!("Chunk: {}", chunk.disassemble("Chunk Dump")));
         self.chunk = Some(chunk);
-        self.run()
+        match self.run() {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                match &e {
+                    VMError::RuntimeError{line, msg} => {
+                        self.runtime_error(*line, &msg);
+                    }
+                    _ => {}
+                }
+                Err(e)
+            }
+        }
     }
 
     fn _read_constant(&mut self, idx: usize) -> &WeaveType {
@@ -68,7 +83,9 @@ impl VM {
         // something went wrong.
         match value {
             Ok(v) => { self.stack.push(v); Ok(self._peek()) }
-            Err(msg) => { Err(VMError::InternalError(msg)) }
+            Err(msg) => { 
+                let line = self.chunk.as_ref().unwrap().lines[self.instruction_counter - 1];
+                Err(VMError::RuntimeError{ line, msg}) }
         }
     }
 
@@ -100,6 +117,7 @@ impl VM {
         loop { // until ip offset > chunk size
             self.debug("Executing...");
             let op = Op::at(ip.next());
+            self.instruction_counter = ip.idx(0);
 
             if self.debug_mode {
                 let mut out = String::new();
@@ -136,12 +154,25 @@ impl VM {
                     let [a,b] = self._poppop();
                     self._push(a / b)?;
                 }
+                Op::TRUE => { self._push(Ok(WeaveType::Boolean(true)))?; }
+                Op::FALSE => { self._push(Ok(WeaveType::Boolean(false)))?; }
             }
         }
     }
 
     fn debug(&self, msg: &str) {
         if self.debug_mode { println!("{}", msg); }
+    }
+
+    fn runtime_error(&mut self, line: usize, msg: &String) {
+        println!("{}", msg);
+        println!("[line {}] in script\n", line);
+        self.reset_stack();
+    }
+    
+    fn reset_stack(&mut self) {
+        self.stack.clear();
+        self.instruction_counter = 0;
     }
 }
 
