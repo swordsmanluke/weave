@@ -11,6 +11,9 @@ Iterable data sources so we don't have to hold a whole file in memory at once
 
 ## Builtins
 
+### String/Number formatting
+`printf("%0.2f", 3.14159) // something like this`
+
 ### Network access functions
 Open sockets, rw from/to sockets
 
