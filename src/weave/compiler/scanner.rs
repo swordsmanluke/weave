@@ -44,6 +44,7 @@ impl CharStream {
 }
 
 pub struct Scanner {
+    debug_mode: bool,
     code: String,
     char_iter: CharStream,
     start: usize,
@@ -52,10 +53,11 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    pub fn new(code: &str) -> Scanner {
+    pub fn new(code: &str, debug_mode: bool) -> Scanner {
         let code = code.to_string();
         let code2 = code.clone();
         Scanner {
+            debug_mode,
             code,
             char_iter: CharStream::new(&code2),
             start: 0,
@@ -82,12 +84,12 @@ impl Scanner {
     }
 
     pub fn basic_token(&self, token_type: TokenType) -> Token {
-        println!("scanner emitting {:?}", token_type);
+        if self.debug_mode { println!("scanner emitting {:?}", token_type); }
         Token::basic_token(token_type, (self.start, self.current), self.line)
     }
 
     pub fn text_token(&self, token_type: TokenType, lextext: &str) -> Token {
-        println!("scanner emitting {:?}: {}", token_type, lextext);
+        if self.debug_mode { println!("scanner emitting {:?}: {}", token_type, lextext); }
         Token::text_token(token_type, (self.start, self.current), lextext, self.line)
     }
 
@@ -112,10 +114,10 @@ impl Scanner {
     }
 
     pub fn scan_token(&mut self) -> Token {
-        println!("scanner: Scanning next token");
-        print!("scanner: Skipping whitespace @ {}-", self.current);
+        if self.debug_mode { println!("scanner: Scanning next token");
+        print!("scanner: Skipping whitespace @ {}-", self.current); }
         self.skip_whitespace();
-        println!("{}", self.current);
+        if self.debug_mode { println!("{}", self.current); }
         self.start = self.current; // Reset the self/scanner
 
         if self.is_at_end() {
@@ -205,7 +207,7 @@ impl Scanner {
     }
 
     fn scan_string(&mut self) -> Token {
-        println!("scanning string");
+        if self.debug_mode { println!("scanning string"); }
         // Down the road, we'll want to support interpolation, but for right now, simple string parsing is good enough
         while !self.is_at_end() && !self.char_iter.matches('"') {
             if self.char_iter.matches('\n') { self.line += 1; }
@@ -280,7 +282,7 @@ mod tests {
 
     #[test]
     fn scan_string() {
-        let mut scanner = Scanner::new("\"hello world\"");
+        let mut scanner = Scanner::new("\"hello world\"", true);
         let token = scanner.scan_token();
         assert_eq!(token.token_type, TokenType::String);
         assert_eq!(token.lexeme.lexeme(), "hello world");
@@ -288,7 +290,7 @@ mod tests {
 
     #[test]
     fn scan_number() {
-        let mut scanner = Scanner::new("123");
+        let mut scanner = Scanner::new("123", true);
         let token = scanner.scan_token();
         assert_eq!(token.token_type, TokenType::Number);
         assert_eq!(token.lexeme.lexeme(), "123");
@@ -296,7 +298,7 @@ mod tests {
 
     #[test]
     fn scan_identifier() {
-        let mut scanner = Scanner::new("hello");
+        let mut scanner = Scanner::new("hello", true);
         let token = scanner.scan_token();
         assert_eq!(token.token_type, TokenType::Identifier);
         assert_eq!(token.lexeme.lexeme(), "hello");

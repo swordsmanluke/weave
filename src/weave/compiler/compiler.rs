@@ -1,3 +1,4 @@
+use std::io::{stdout, Write};
 use crate::weave::compiler::parse_rule::ParseRule;
 use crate::weave::compiler::parser::Parser;
 use crate::weave::compiler::precedence::Precedence;
@@ -30,7 +31,9 @@ impl Compiler {
 
     pub fn compile(&mut self) -> CompileResult {
         self.advance();
-        self.expression();
+        while !self.parser.cur_is(TokenType::EOF) {
+            self.declaration();
+        }
         self.consume(TokenType::EOF, "Expected end of file");
         self.emit_opcode(Op::RETURN);
 
@@ -79,6 +82,7 @@ impl Compiler {
 
         println!("{}", message);
         println!("Error on line {}:\n\t{}", token.line, token.lexeme);
+        stdout().flush();
         self.had_error = true;
         self.panic_mode = true;
     }
@@ -87,6 +91,94 @@ impl Compiler {
         if self.debug_mode { println!("Parsing Expression"); }
         self.print_progress();
         self.parse_precedence(Precedence::ASSIGNMENT);
+        self.check(TokenType::Semicolon);
+    }
+
+    pub fn declaration(&mut self) {
+        if self.debug_mode { println!("Parsing Declaration"); }
+        self.print_progress();
+        
+        if self.panic_mode { self.synchronize(); }
+        
+        
+        if self.matches(TokenType::Identifier) {
+            // This could be a few cases
+            //   1 - declaring a new variable
+            //   2 - assigning to an existing var
+            //   3 - evaling an existing var
+            // In Weave, cases 1&2 have the same syntax: x = y
+            // So we need to emit a single opcode 'assign' for both and let the VM handle it.
+            // The third case requires that there is _not_ an equal sign after the identifier. 
+            // So we have to consume the identifier... then see what comes next to know what 
+            // to emit!
+            if self.parser.peek_type() == TokenType::Equal {
+                self.variable_declaration();
+            }
+        }
+        self.statement();
+    }
+    
+    fn variable_declaration(&mut self) {
+        let identifier = self.parser.previous().lexeme.lexeme().to_string();
+        self.consume(TokenType::Equal, "Expected assignment in declaration");
+        self.expression(); // Compile the expression
+        // The expression's value is now on "top" of the stack, so next we need to push the name of the global we want to bind it to.
+        self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
+        // Then tell the VM to use this new "name" constant to define a global... with the value previously left on the stack
+        self.emit_opcode(Op::DECL_GLOBAL);
+    }
+
+    pub fn statement(&mut self) {
+        if self.debug_mode { println!("Parsing Statement"); }
+        self.print_progress();
+        match self.parser.peek_type() {
+            TokenType::Puts => { self.puts_statement(); }
+            _ => { self.expression_statement(); }
+        }
+    }
+    
+    fn expression_statement(&mut self) {
+        self.expression();
+        self.check(TokenType::Semicolon);
+        self.emit_opcode(Op::POP);
+    }
+    
+    fn matches(&mut self, token_type: TokenType) -> bool {
+        if self.parser.cur_is(token_type) {
+            self.advance();
+            true
+        } else {
+            false
+        }
+    }
+    
+    fn check(&mut self,token: TokenType) {
+        if self.parser.cur_is(token) {
+            self.advance();
+        }
+    }
+    
+    fn puts_statement(&mut self) {
+        self.advance();
+        self.expression();
+        self.emit_opcode(Op::PRINT);
+    }
+
+    fn synchronize(&mut self) {
+        self.panic_mode = false;
+        
+        while !self.parser.cur_is(TokenType::EOF) {
+            if self.parser.previous().token_type == TokenType::Semicolon {
+                return;
+            }
+            
+            match self.parser.peek_type() {
+                TokenType::FN | TokenType::Puts | TokenType::If | TokenType::Return => return,
+                _ => (),
+            }
+            
+            self.advance();
+        }
     }
 
     fn print_progress(&mut self) {
@@ -207,12 +299,21 @@ impl Compiler {
     
     fn emit_string(&mut self, value: String) {
         let line = self.line;
-        self.current_chunk().add_constant(WeaveType::String(value), line);
+        self.current_chunk().add_constant(WeaveType::String(value.into()), line);
     }
 
     fn emit_opcode(&mut self, op: Op) {
         let line = self.line;
         self.current_chunk().write_op(op, line);
+    }
+    
+    fn emit_u16(&mut self, u: u16) { 
+        self.emit_bytes(u.to_be_bytes().to_vec())
+    }
+
+    fn emit_bytes(&mut self, bytes: Vec<u8>) {
+        let line = self.line;
+        self.current_chunk().write(&bytes, line);
     }
 }
 

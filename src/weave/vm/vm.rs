@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::io::{stdout, Write};
 use crate::weave::{Chunk, Op};
 use crate::weave::compiler::Compiler;
 use crate::weave::vm::instruction_pointer::IP;
@@ -8,6 +10,7 @@ use crate::weave::vm::types::errors::OpResult;
 pub struct VM {
     chunk: Option<Chunk>,
     stack: Vec<WeaveType>,
+    globals: HashMap<String, WeaveType>,
     instruction_counter: usize,
     pub debug_mode: bool,
 }
@@ -37,6 +40,7 @@ impl VM {
         VM {
             chunk: None,
             stack: Vec::with_capacity(255),
+            globals: HashMap::new(),
             instruction_counter: 0,
             debug_mode
         }
@@ -81,7 +85,8 @@ impl VM {
         match value {
             Ok(v) => { self.stack.push(v); Ok(self._peek()) }
             Err(msg) => { 
-                let line = self.chunk.as_ref().unwrap().lines[self.instruction_counter - 1];
+                let offset = self.instruction_counter - 1;
+                let line = self.chunk.as_ref().unwrap().line_number_at(offset);
                 Err(VMError::RuntimeError{ line, msg}) }
         }
     }
@@ -125,12 +130,27 @@ impl VM {
 
             self.debug(&format!("EVAL({:?})", op));
             match op {
-                Op::RETURN => {
-                    return Ok(self._pop())
-                }
+                Op::RETURN | Op::POP => { return Ok(self._pop()) }
                 Op::CONSTANT => {
-                    let v = Ok(self._read_constant(ip.next() as usize).clone());
+                    let v = Ok(self._read_constant(ip.next_u16() as usize).clone());
                     self._push(v)?;
+                }
+                Op::DECL_GLOBAL => {
+                    // Previous to this we should have processed an expression (val)
+                    // then pushed the name of the global we want to bind it to
+                    // and now we need to actually bind it. 
+                    // So pop the name and value off the stack.
+                    let [val, name] = self._poppop();
+                    match name {
+                        WeaveType::String(name) => {
+                            self.debug(&format!("Declaring global: {} = {}", name, val));
+                            self.globals.insert(name.to_string(), val);
+                        }
+                        _ => {
+                            let line = self.chunk.as_ref().unwrap().line_number_at(self.instruction_counter - 1);
+                            return Err(VMError::RuntimeError { line, msg: "Invalid global name".to_string() });
+                        }
+                    }
                 }
                 Op::NEGATE => { let v = -self._pop(); self._push(v)?; }
                 Op::ADD => {
@@ -169,12 +189,13 @@ impl VM {
                     let [a,b] = self._poppop();
                     self._push(Ok(WeaveType::Boolean(a == b)))?;
                 }
+                Op::PRINT => { println!("{}", self._pop()); }
             }
         }
     }
 
     fn debug(&self, msg: &str) {
-        if self.debug_mode { println!("{}", msg); }
+        if self.debug_mode { println!("{}", msg); stdout().flush(); }
     }
 
     fn runtime_error(&mut self, line: usize, msg: &String) {
@@ -209,5 +230,41 @@ mod tests {
         assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(21.0));
+    }
+    
+    #[test]
+    fn test_negate() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("-5");
+        assert_eq!(vm.stack.len(), 0);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(-5.0));
+    }
+    
+    #[test]
+    fn test_string_literal() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("\"hello\"");
+        assert_eq!(vm.stack.len(), 0);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from("hello"));
+    }
+    
+    #[test]
+    fn test_puts_statement() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("puts \"hello\";");
+        assert_eq!(vm.stack.len(), 0);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+    }
+    
+    #[test]
+    fn test_declaring_var() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("x = 5");
+        assert_eq!(vm.stack.len(), 0);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert!(vm.globals.contains_key("x"), "Global \"x\" not found in {:?}", vm.globals.keys().collect::<Vec<&String>>());
+        assert_eq!(vm.globals["x"], WeaveType::from(5.0));
     }
 }

@@ -6,6 +6,7 @@ use crate::weave::vm::traits::disassemble::Disassemble;
 pub enum Op {
     // Numeric Constants
     CONSTANT,  // TODO: Always 64 bit double right now. Fix that.
+    DECL_GLOBAL,
     
     // Boolean
     TRUE,
@@ -26,6 +27,10 @@ pub enum Op {
     
     // Control
     RETURN,
+    POP,
+    
+    // IO
+    PRINT,
 }
 
 impl Op {
@@ -44,6 +49,9 @@ impl Op {
             Op::GREATER => vec![10],
             Op::LESS => vec![11],
             Op::EQUAL => vec![12],
+            Op::PRINT => vec![13],
+            Op::POP => vec![14],
+            Op::DECL_GLOBAL => vec![15],
         }
     }
 
@@ -63,6 +71,9 @@ impl Op {
             10 => Op::GREATER,
             11 => Op::LESS,
             12 => Op::EQUAL,
+            13 => Op::PRINT,
+            14 => Op::POP,
+            15 => Op::DECL_GLOBAL,
 
             _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.
         }
@@ -80,15 +91,15 @@ impl Disassemble for Op {
         match self {
             Op::CONSTANT => {
                 write!(f, "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
-                // Next ,grab the following 8 bytes and convert them to a value... might need
-                // some tracking to do this right. Separate Opcodes for encoding [u]int|floats?
                 let mut offset = offset + 1; // Skip the opcode, already consumed
-                let idx = chunk.code[offset] as usize;
-
-                // Convert the next 8 bytes to a f64
+                
+                // Read two bytes for the index
+                let idx = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
+                offset += 2; 
+                
+                // Now retrieve the value from the constants table and print it
                 let value = &chunk.constants[idx];
                 writeln!(f, "\t{0:04x}  {1}", idx, value).unwrap();
-                offset += 1;
                 offset
             },
             op => {

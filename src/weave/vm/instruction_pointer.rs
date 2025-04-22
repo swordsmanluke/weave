@@ -26,6 +26,13 @@ impl IP {
         }
     }
     
+    pub fn next_u16(&mut self) -> u16 {
+        // Read next 2 bytes as a u16 - written big endian
+        let hi = self.next() as u16;
+        let lo = self.next() as u16;
+        hi << 8 | lo
+    }
+    
     pub fn idx(&self, offset: isize) -> usize {
         if offset < 0 {
             if offset.abs() as usize > self.ip { return 0 }

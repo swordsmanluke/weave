@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Not, Sub};
 use crate::weave::vm::types::weave_number::WeaveNumber;
 use crate::weave::vm::types::errors::OpResult;
+use crate::weave::vm::types::weave_string::WeaveString;
 
 // Our types for Weave. Detailed type information can be found in the implementation of each type
 #[derive(Debug, Clone)]
@@ -10,7 +11,7 @@ pub enum WeaveType {
     None,
     Boolean(bool),
     Number(WeaveNumber),
-    String(String),
+    String(WeaveString),
 }
 
 impl WeaveType {
@@ -58,14 +59,14 @@ impl From<bool> for WeaveType {
 impl From<String> for WeaveType {
     fn from(value: String) -> Self {
         // TODO: handle escapes, etc
-        WeaveType::String(value)
+        WeaveType::String(value.into())
     }
 } 
 
 impl From<&str> for WeaveType {
     fn from(value: &str) -> Self {
         // TODO: handle escapes, etc
-        WeaveType::String(value.to_string())
+        WeaveType::String(value.into())
     }
 } 
 
@@ -129,7 +130,7 @@ impl Add for WeaveType {
     fn add(self, rhs: Self) -> Self::Output {
         match (&self, &rhs) {
             (WeaveType::Number(a), WeaveType::Number(b)) => Ok(WeaveType::Number(a + b)),
-            (WeaveType::String(a), WeaveType::String(b)) => Ok(WeaveType::String(format!("{}{}", a, b))),
+            (WeaveType::String(a), WeaveType::String(b)) => Ok(WeaveType::String(a + b)),
             _ => Err(format!("Cannot add '{}' and '{}'", self, rhs))
         }
     }

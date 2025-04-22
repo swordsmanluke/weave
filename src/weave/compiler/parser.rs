@@ -9,7 +9,7 @@ pub(crate) struct Parser {
 impl  Parser {
     pub fn new(code: &str) -> Parser {
         Parser {
-            scanner: Scanner::new(code),
+            scanner: Scanner::new(code, false),
             tokens: Vec::new(),
         }
     }
@@ -21,15 +21,15 @@ impl  Parser {
     pub fn peek(&self) -> Token {
         self.prev(0)
     }
-    
+
     pub fn previous(&self) -> Token {
         self.prev(1)
     }
-    
+
     fn prev(&self, i: usize) -> Token {
         self.tokens.get(i).cloned().unwrap_or(Token::text_token(TokenType::ERROR, (0, 0), "Out of bounds", 0))
     }
-    
+
     pub fn peek_type(&self) -> TokenType {
         self.peek().token_type
     }

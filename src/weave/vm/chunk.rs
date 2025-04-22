@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Write};
 use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;
@@ -7,34 +8,48 @@ use crate::weave::vm::types::WeaveType;
 pub struct Chunk {
     pub code: Vec<u8>,
     pub constants: Vec<WeaveType>, // May be replaceable with a vec
-    pub lines: Vec<usize>
+    pub lines: Vec<(usize, usize)>
 }
 
 impl Chunk {
     pub fn new() -> Chunk {
-        Chunk { code: vec![], constants: vec![], lines: vec![] }
+        Chunk { code: vec![], constants: vec![], lines: Vec::new() }
     }
     
     pub fn write_op(&mut self, op: Op, line: usize) {
-        self._write(&op.bytecode(), line);
+        self.write(&op.bytecode(), line);
     }
-
+    
     /// TODO: Helper for the dissassembler - this should probably move elsewhere
     pub fn line_str(&self, offset: usize) -> String {
-        let is_newline = offset == 0 || self.lines[offset] != self.lines[offset - 1];
-        if is_newline { format!("{:4 }", self.lines[offset]) } else { "   | ".to_string() }
+        let (line_offset, line) = *self.lines.iter()
+            .find(|(l_offset, line)| *l_offset >= offset)
+            .unwrap_or(&(0,0));
+        
+        let is_newline = offset == line_offset;
+        if is_newline { format!("{:4 }", line) } else { "   | ".to_string() }
+    }
+    
+    pub(crate) fn line_number_at(&self, offset: usize) -> usize {
+        let (_line_offset, line) = *self.lines.iter()
+            .find(|(l_offset, line)| *l_offset >= offset)
+            .unwrap_or(&(0,0));
+        line
     }
 
-    fn _write(&mut self, bytes: &Vec<u8>, line: usize) {
+    pub fn write(&mut self, bytes: &Vec<u8>, line: usize) {
         bytes.iter().for_each(|b| self.code.push(*b));
-        self.lines.push(line);
+        if self.lines.last().unwrap_or(&(0,0)).1 != line {
+            let offset = self.code.len() - 1;
+            self.lines.push((offset, line)) 
+        }
     }
 
     pub fn add_constant(&mut self, value: WeaveType, line: usize) -> usize {
         self.write_op(Op::CONSTANT, line);
         self.constants.push(value);
-        let idx = (self.constants.len() - 1) as u8;
-        self._write(&vec![idx], line);
+        let idx = (self.constants.len() - 1) as u16;
+        self.write(&idx.to_be_bytes().to_vec(), line); // Write BigEndian bytes to the chunk
         idx as usize
     }
 
