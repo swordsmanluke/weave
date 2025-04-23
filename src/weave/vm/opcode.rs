@@ -1,18 +1,21 @@
-use std::fmt::Write;
+use std::io::Write;
+use std::fmt::{Formatter};
 use crate::weave::Chunk;
 use crate::weave::vm::traits::disassemble::Disassemble;
 
 #[derive(Debug, PartialEq)]
 pub enum Op {
-    // Numeric Constants
-    CONSTANT,  // TODO: Always 64 bit double right now. Fix that.
-    DECL_GLOBAL,
-    
-    // Boolean
+    // Literals
     TRUE,
     FALSE,
-    NOT,
+    CONSTANT,  // TODO: Always 64 bit double right now. Fix that.
+    DECL_GLOBAL,
+
+    GET_GLOBAL,
     
+    // Boolean
+    NOT,
+
     // Comparison
     GREATER,
     LESS,
@@ -28,7 +31,7 @@ pub enum Op {
     // Control
     RETURN,
     POP,
-    
+
     // IO
     PRINT,
 }
@@ -52,6 +55,7 @@ impl Op {
             Op::PRINT => vec![13],
             Op::POP => vec![14],
             Op::DECL_GLOBAL => vec![15],
+            Op::GET_GLOBAL => vec![16],
         }
     }
 
@@ -74,6 +78,7 @@ impl Op {
             13 => Op::PRINT,
             14 => Op::POP,
             15 => Op::DECL_GLOBAL,
+            16 => Op::GET_GLOBAL,
 
             _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.
         }
@@ -87,19 +92,20 @@ impl From<u8> for Op {
 }
 
 impl Disassemble for Op {
-    fn disassemble(&self, offset: usize, chunk: &Chunk, f: &mut String) -> usize {
+    fn disassemble(&self, offset: usize, chunk: &Chunk) -> usize {
+        let mut f = std::io::stdout();
         match self {
             Op::CONSTANT => {
-                write!(f, "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
+                write!(&mut std::io::stdout(), "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
                 let mut offset = offset + 1; // Skip the opcode, already consumed
-                
+
                 // Read two bytes for the index
                 let idx = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
-                offset += 2; 
-                
+                offset += 2;
+
                 // Now retrieve the value from the constants table and print it
                 let value = &chunk.constants[idx];
-                writeln!(f, "\t{0:04x}  {1}", idx, value).unwrap();
+                writeln!(&mut std::io::stdout(), "\t{0:04x}  {1}", idx, value).unwrap();
                 offset
             },
             op => {

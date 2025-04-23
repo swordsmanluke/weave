@@ -50,6 +50,7 @@ impl ParseRule {
             TokenType::False => ParseRuleBuilder::p_none().prefix(Compiler::literal).rule,
             TokenType::Number => ParseRuleBuilder::p_none().prefix(Compiler::number).rule,
             TokenType::String => ParseRuleBuilder::p_none().prefix(Compiler::string).rule,
+            TokenType::Identifier => ParseRuleBuilder::p_none().prefix(Compiler::variable).rule,
 
             // TODO
             TokenType::AndAnd => ParseRule::new(),
@@ -57,7 +58,6 @@ impl ParseRule {
             TokenType::Pipe => ParseRule::new(),
             TokenType::Map => ParseRule::new(),
             TokenType::Reduce => ParseRule::new(),
-            TokenType::Identifier => ParseRule::new(),
             TokenType::Container => ParseRule::new(),
             TokenType::If => ParseRule::new(),
             TokenType::Else => ParseRule::new(),
