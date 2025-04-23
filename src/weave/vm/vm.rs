@@ -11,11 +11,12 @@ pub struct VM {
     chunk: Option<Chunk>,
     stack: Vec<WeaveType>,
     globals: HashMap<String, WeaveType>,
+    last_value: WeaveType,
     instruction_counter: usize,
     pub debug_mode: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum VMError {
     InvalidChunk,
     CompilationError(String),
@@ -42,21 +43,22 @@ impl VM {
             stack: Vec::with_capacity(255),
             globals: HashMap::new(),
             instruction_counter: 0,
+            last_value: WeaveType::None,
             debug_mode,
         }
     }
 
     pub fn interpret(&mut self, source: &str) -> VMResult {
-        let mut compiler = Compiler::new(source, true);
-        self.debug("Compiling...");
+        let mut compiler = Compiler::new(source, false);
+        self.debug(&format!("Compiling...\n{}", source));
         let chunk = match compiler.compile() {
             Ok(c) => c,
             Err(msg) => return Err(VMError::CompilationError(msg)),
         };
 
         self.debug("Interpreting...");
-        if self.debug_mode { chunk.disassemble("chunk dump"); 
-        }
+        chunk.disassemble("chunk dump");
+        
         self.chunk = Some(chunk);
         match self.run() {
             Ok(v) => Ok(v),
@@ -99,6 +101,7 @@ impl VM {
     fn _pop(&mut self) -> WeaveType {
         // TODO: This is _nearly_ where the "free" would be in C - basically as soon as the
         //       value returned here is dropped, it should be freed
+        match self._peek() { WeaveType::None => {} _ => self.last_value = self._peek().clone() };
         self.stack.pop().unwrap_or(WeaveType::None)
     }
 
@@ -134,12 +137,13 @@ impl VM {
 
             self.debug(&format!("EVAL({:?})", op));
             match op {
-                Op::RETURN | Op::POP => return Ok(self._pop()),
+                Op::RETURN => return Ok(self.last_value.clone()), 
+                Op::POP => { self._pop(); },
                 Op::CONSTANT => {
                     let v = Ok(self._read_constant(ip.next_u16() as usize).clone());
                     self._push(v)?;
                 }
-                Op::DECL_GLOBAL => {
+                Op::SET_GLOBAL => {
                     // Previous to this we should have processed an expression (val)
                     // then pushed the name of the global we want to bind it to
                     // and now we need to actually bind it.
@@ -294,7 +298,7 @@ mod tests {
         let res = vm.interpret("x = 5\nx + 2");
         assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(7.0));
+        assert_eq!(vm.last_value, WeaveType::from(7.0));
     }
 
     #[test]
@@ -325,5 +329,12 @@ mod tests {
             vm.globals.keys().collect::<Vec<&String>>()
         );
         assert_eq!(vm.globals["x"], WeaveType::from(5.0));
+    }
+    
+    #[test]
+    fn test_invalid_assignment_doesnt_parse() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("a= 1; a + b = 5");
+        assert!(res.is_err());
     }
 }

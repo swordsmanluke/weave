@@ -1,9 +1,10 @@
 use crate::weave::compiler::Compiler;
+use crate::weave::compiler::compiler::AssignMode;
 use crate::weave::compiler::precedence::Precedence;
 use crate::weave::compiler::token::TokenType;
 
 pub struct ParseRule {
-    pub prefix: Option<fn(&mut Compiler) -> ()>,
+    pub prefix: Option<fn(&mut Compiler, AssignMode) -> ()>,
     pub infix: Option<fn(&mut Compiler) -> ()>,
     pub precedence: Precedence,
 }
@@ -82,7 +83,7 @@ impl ParseRuleBuilder {
         }
     }
     
-    pub fn prefix(mut self, prefix: fn(&mut Compiler) -> ()) -> ParseRuleBuilder {
+    pub fn prefix(mut self, prefix: fn(&mut Compiler, AssignMode) -> ()) -> ParseRuleBuilder {
         self.rule.prefix = Some(prefix);
         self
     }

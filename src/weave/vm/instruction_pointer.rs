@@ -1,3 +1,4 @@
+use crate::weave::Op;
 
 pub(crate) struct IP {
     pub ip: usize,
@@ -19,7 +20,7 @@ impl IP {
     }
 
     pub fn next(&mut self) -> u8 {
-        self.debug(&format!("IP (NEXT) -> {:0x}", self.ip));
+        self.debug(&format!("IP ({:0x}) -> {1:0x}", self.ip, *self.code.get(self.ip).unwrap_or(&0)));
         match self.code.get(self.ip) {
             Some(v) => { self.ip += 1; *v},
             None => 0

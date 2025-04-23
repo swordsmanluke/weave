@@ -9,7 +9,7 @@ pub enum Op {
     TRUE,
     FALSE,
     CONSTANT,  // TODO: Always 64 bit double right now. Fix that.
-    DECL_GLOBAL,
+    SET_GLOBAL,
 
     GET_GLOBAL,
     
@@ -54,7 +54,7 @@ impl Op {
             Op::EQUAL => vec![12],
             Op::PRINT => vec![13],
             Op::POP => vec![14],
-            Op::DECL_GLOBAL => vec![15],
+            Op::SET_GLOBAL => vec![15],
             Op::GET_GLOBAL => vec![16],
         }
     }
@@ -77,7 +77,7 @@ impl Op {
             12 => Op::EQUAL,
             13 => Op::PRINT,
             14 => Op::POP,
-            15 => Op::DECL_GLOBAL,
+            15 => Op::SET_GLOBAL,
             16 => Op::GET_GLOBAL,
 
             _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.

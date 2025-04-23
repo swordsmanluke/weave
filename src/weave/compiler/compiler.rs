@@ -1,3 +1,4 @@
+use std::cmp::PartialEq;
 use std::io::{stdout, Write};
 use crate::weave::compiler::parse_rule::ParseRule;
 use crate::weave::compiler::parser::Parser;
@@ -5,6 +6,7 @@ use crate::weave::compiler::precedence::Precedence;
 use crate::weave::compiler::token::{Token, TokenType};
 use crate::weave::vm::types::WeaveType;
 use crate::weave::{Chunk, Op};
+use crate::weave::compiler::precedence;
 
 pub type CompileResult = Result<Chunk, String>;
 
@@ -15,6 +17,21 @@ pub struct Compiler {
     panic_mode: bool,
     chunk: Chunk,
     debug_mode: bool,
+}
+
+pub enum AssignMode {
+    Yes,
+    No
+}
+
+impl PartialEq for AssignMode {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (AssignMode::Yes, AssignMode::Yes) => true,
+            (AssignMode::No, AssignMode::No) => true,
+            _ => false
+        }
+    }
 }
 
 impl Compiler {
@@ -38,10 +55,8 @@ impl Compiler {
         self.emit_opcode(Op::RETURN);
 
         if self.had_error {
-            let mut err_str = String::new();
-
             self.chunk.disassemble("Chunk Dump");
-            self.report_err(&err_str);
+            self.report_err("Compilation error- see above");
             return Err("Compilation error".to_string());
         }
         
@@ -103,42 +118,45 @@ impl Compiler {
 
         if self.panic_mode { self.synchronize(); }
 
-
-        if self.matches(TokenType::Identifier) {
-            // This could be a few cases
-            //   1 - declaring a new variable
-            //   2 - assigning to an existing var
-            //   3 - evaling an existing var
-            // In Weave, cases 1&2 have the same syntax: x = y
-            // So we need to emit a single opcode 'assign' for both and let the VM handle it.
-            // The third case requires that there is _not_ an equal sign after the identifier.
-            // So we have to consume the identifier... then see what comes next to know what
-            // to emit!
-            if self.parser.peek_type() == TokenType::Equal {
-                self.variable_declaration();
-            } else {
-                self.variable();
-            }
-        }
         self.statement();
     }
 
-    pub fn variable(&mut self) {
+    pub fn variable(&mut self, assign_mode: AssignMode) {
+        // This could be a few cases
+        //   1 - declaring a new variable
+        //   2 - assigning to an existing var
+        //   3 - evaling an existing var
+        // In Weave, cases 1&2 have the same syntax: x = y
+        // So we need to emit a single opcode 'assign' for both and let the VM handle it.
+        // The third case requires that there is _not_ an equal sign after the identifier.
+        // So we have to consume the identifier... then see what comes next to know what
+        // to emit!
+        if self.parser.peek_type() == TokenType::Equal && assign_mode == AssignMode::Yes {
+            self.variable_set();
+        } else {
+            self.variable_get();
+        }
+    }
+    
+    fn variable_get(&mut self) {
         if self.debug_mode { println!("compiling variable GET @ {}", self.parser.previous()); } 
         let identifier = self.parser.previous().lexeme.lexeme().to_string();
         self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
         self.emit_opcode(Op::GET_GLOBAL);
     }
 
-    fn variable_declaration(&mut self) {
+    fn variable_set(&mut self) {
         if self.debug_mode { println!("compiling variable DEF @ {}", self.parser.previous()); }
+        
         let identifier = self.parser.previous().lexeme.lexeme().to_string();
         self.consume(TokenType::Equal, "Expected assignment in declaration");
         self.expression(); // Compile the expression
+        
         // The expression's value is now on "top" of the stack, so next we need to push the id of the global we want to bind it to.
         self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
         // Then tell the VM to use this new "name" constant to define a global... with the value previously left on the stack
-        self.emit_opcode(Op::DECL_GLOBAL);
+        
+        self.emit_opcode(Op::SET_GLOBAL);
     }
 
     pub fn statement(&mut self) {
@@ -205,9 +223,11 @@ impl Compiler {
             println!("Parsing Precedence {:?} @ {}", precedence, self.parser.previous());
             self.print_progress();
         }
+        
+        let assign_mode = if precedence > Precedence::ASSIGNMENT { AssignMode::No } else { AssignMode::Yes }; // if precedence is higher than ASSIGNMENT, then it is an assignment expression. Otherwise, it is not.AssignMode::No;
 
         match ParseRule::for_token(self.parser.previous().token_type).prefix {
-            Some(prefix) => prefix(self), // There is a prefix method - , call it
+            Some(prefix) => prefix(self, assign_mode), // There is a prefix method - , call it
             None => self.report_err(&format!("Expected prefix expression for token {}", self.parser.previous())),
         }
 
@@ -220,12 +240,12 @@ impl Compiler {
         }
     }
 
-    pub(crate) fn grouping(&mut self) {
+    pub(crate) fn grouping(&mut self, assign_mode: AssignMode) {
         self.expression();
         self.consume(TokenType::RightParen, "Expected ')' after expression");
     }
 
-    pub(crate) fn unary(&mut self) {
+    pub(crate) fn unary(&mut self, assign_mode: AssignMode) {
         if self.debug_mode {
             println!("compiling unary @ {}", self.parser.previous());
         }
@@ -239,7 +259,7 @@ impl Compiler {
         }
     }
     
-    pub fn literal(&mut self) {
+    pub fn literal(&mut self, assign_mode: AssignMode) {
         if self.debug_mode {
             println!("compiling literal @ {}", self.parser.previous());
         }
@@ -284,7 +304,7 @@ impl Compiler {
         };
     }
 
-    pub fn number(&mut self) {
+    pub fn number(&mut self, assign_mode: AssignMode) {
         if self.debug_mode {
             println!("compiling number @ {}", self.parser.previous());
         }
@@ -304,7 +324,7 @@ impl Compiler {
             .add_constant(WeaveType::Number(value.into()), line);
     }
     
-    pub fn string(&mut self) {
+    pub fn string(&mut self, assign_mode: AssignMode) {
         if self.debug_mode { println!("compiling string @ {}", self.parser.previous()); }
         let value = self.parser.previous().lexeme.lexeme().to_string();
         self.emit_string(value);
