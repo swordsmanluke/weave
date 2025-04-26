@@ -38,7 +38,11 @@ impl Chunk {
     }
 
     pub fn write(&mut self, bytes: &Vec<u8>, line: usize) {
-        bytes.iter().for_each(|b| self.code.push(*b));
+        bytes.iter().for_each(|b| self.write_byte(*b, line));
+    }
+    
+    pub fn write_byte(&mut self, byte: u8, line: usize) {
+        self.code.push(byte);
         if self.lines.last().unwrap_or(&(0,0)).1 != line {
             let offset = self.code.len() - 1;
             self.lines.push((offset, line))

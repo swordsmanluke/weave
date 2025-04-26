@@ -10,8 +10,9 @@ pub enum Op {
     FALSE,
     CONSTANT,  // TODO: Always 64 bit double right now. Fix that.
     SET_GLOBAL,
-
     GET_GLOBAL,
+    SET_LOCAL,
+    GET_LOCAL,
     
     // Boolean
     NOT,
@@ -56,6 +57,8 @@ impl Op {
             Op::POP => vec![14],
             Op::SET_GLOBAL => vec![15],
             Op::GET_GLOBAL => vec![16],
+            Op::SET_LOCAL => vec![17],
+            Op::GET_LOCAL => vec![18],
         }
     }
 
@@ -79,6 +82,8 @@ impl Op {
             14 => Op::POP,
             15 => Op::SET_GLOBAL,
             16 => Op::GET_GLOBAL,
+            17 => Op::SET_LOCAL,
+            18 => Op::GET_LOCAL,
 
             _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.
         }
@@ -96,7 +101,7 @@ impl Disassemble for Op {
         let mut f = std::io::stdout();
         match self {
             Op::CONSTANT => {
-                write!(&mut std::io::stdout(), "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
+                write!(f, "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
                 let mut offset = offset + 1; // Skip the opcode, already consumed
 
                 // Read two bytes for the index
@@ -105,9 +110,17 @@ impl Disassemble for Op {
 
                 // Now retrieve the value from the constants table and print it
                 let value = &chunk.constants[idx];
-                writeln!(&mut std::io::stdout(), "\t{0:04x}  {1}", idx, value).unwrap();
+                writeln!(f, "\t{0:04x}  {1}", idx, value).unwrap();
                 offset
             },
+            Op::GET_LOCAL | Op::SET_LOCAL => {
+                write!(f, "{0:04x}  {1}  {2:?}",  offset, chunk.line_str(offset), self).unwrap();
+                // Lookup the slot and print its contents
+                let slot = chunk.code[offset + 1];
+                let value = &chunk.constants[slot as usize];
+                writeln!(f, "\t{0:04x}  {1}", slot, value).unwrap();
+                offset + 2
+            }
             op => {
                 writeln!(f, "{:04x}  {}  {:?}", offset, chunk.line_str(offset), op).unwrap();
                 offset + 1

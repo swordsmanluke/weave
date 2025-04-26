@@ -143,6 +143,14 @@ impl VM {
                     let v = Ok(self._read_constant(ip.next_u16() as usize).clone());
                     self._push(v)?;
                 }
+                Op::SET_LOCAL => {
+                    let slot = ip.next() as usize;
+                    self.stack[slot] = self._peek();
+                }
+                Op::GET_LOCAL => {
+                    let slot = ip.next() as usize;
+                    self._push(Ok(self.stack[slot].clone()))?;
+                }
                 Op::SET_GLOBAL => {
                     // Previous to this we should have processed an expression (val)
                     // then pushed the name of the global we want to bind it to
@@ -336,5 +344,14 @@ mod tests {
         let mut vm = VM::new(true);
         let res = vm.interpret("a= 1; a + b = 5");
         assert!(res.is_err());
+    }
+    
+    #[test]
+    fn test_local_variables() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("{ x = 1; x + 3 }");
+        assert_eq!(vm.stack.len(), 0);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(vm.last_value, WeaveType::from(4.0));
     }
 }

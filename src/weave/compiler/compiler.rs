@@ -17,6 +17,17 @@ pub struct Compiler {
     panic_mode: bool,
     chunk: Chunk,
     debug_mode: bool,
+    scope: Scope
+}
+
+struct Local {
+    name: Box<String>,
+    depth: u8
+}
+
+struct Scope {
+    locals: Vec<Local>,
+    depth: u8
 }
 
 pub enum AssignMode {
@@ -42,6 +53,7 @@ impl Compiler {
             had_error: false,
             panic_mode: false,
             chunk: Chunk::new(),
+            scope: Scope { locals: Vec::new(), depth: 0 },
             debug_mode,
         }
     }
@@ -52,14 +64,14 @@ impl Compiler {
             self.declaration();
         }
         self.consume(TokenType::EOF, "Expected end of file");
-        self.emit_opcode(Op::RETURN);
+        self.emit_basic_opcode(Op::RETURN);
 
         if self.had_error {
             self.chunk.disassemble("Chunk Dump");
             self.report_err("Compilation error- see above");
             return Err("Compilation error".to_string());
         }
-        
+
         Ok(self.chunk.clone())
     }
 
@@ -137,41 +149,80 @@ impl Compiler {
             self.variable_get();
         }
     }
-    
+
     fn variable_get(&mut self) {
-        if self.debug_mode { println!("compiling variable GET @ {}", self.parser.previous()); } 
+        if self.debug_mode { println!("compiling variable GET @ {}", self.parser.previous()); }
         let identifier = self.parser.previous().lexeme.lexeme().to_string();
-        self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
-        self.emit_opcode(Op::GET_GLOBAL);
+        let idx = self.resolve_local(identifier.as_str());
+        if idx != -1 {
+            self.emit_opcode(Op::GET_LOCAL, &vec![idx as u8]);
+        } else {
+            self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
+            self.emit_basic_opcode(Op::GET_GLOBAL);
+        }
     }
 
     fn variable_set(&mut self) {
         if self.debug_mode { println!("compiling variable DEF @ {}", self.parser.previous()); }
-        
-        let identifier = self.parser.previous().lexeme.lexeme().to_string();
+
+        let identifier = self.parser.previous();
         self.consume(TokenType::Equal, "Expected assignment in declaration");
         self.expression(); // Compile the expression
-        
-        // The expression's value is now on "top" of the stack, so next we need to push the id of the global we want to bind it to.
-        self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
-        // Then tell the VM to use this new "name" constant to define a global... with the value previously left on the stack
-        
-        self.emit_opcode(Op::SET_GLOBAL);
+
+        self.named_variable(identifier.lexeme.lexeme().to_string());
+    }
+
+    fn resolve_local(&self, identifier: &str) -> isize {
+        let mut idx = -1;
+        if self.scope.locals.is_empty() { return idx; }
+
+        for i in (self.scope.locals.len() - 1)..=0 {
+            let local = &self.scope.locals[i];
+            if local.name.as_str() == identifier {
+                idx = i as isize;
+                break;
+            }
+        }
+
+        idx
+    }
+
+    fn named_variable(&mut self, identifier: String) {
+        if self.scope.depth > 0 {
+            let idx = self.resolve_local(identifier.as_str());
+            if idx != -1 {
+                self.emit_opcode(Op::SET_LOCAL, &[idx as u8].to_vec());
+            } else {
+                // Create new variable
+                let local = Local { name: identifier.into(), depth: self.scope.depth };
+                self.scope.locals.push(local);
+                self.emit_opcode(Op::SET_LOCAL, &[0 as u8].to_vec());
+            }
+        } else {
+            self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
+            self.emit_basic_opcode(Op::SET_GLOBAL);
+        }
     }
 
     pub fn statement(&mut self) {
         if self.debug_mode { println!("Parsing Statement"); }
         self.print_progress();
-        match self.parser.peek_type() {
-            TokenType::Puts => { self.puts_statement(); }
-            _ => { self.expression_statement(); }
+
+        if self.check(TokenType::Puts) {
+            self.puts_statement();
+        } else if self.check(TokenType::LeftBrace) {
+            self.begin_scope();
+            self.block();
+            self.end_scope();
+        } else {
+            self.expression_statement();
         }
     }
 
     fn expression_statement(&mut self) {
         self.expression();
         self.check(TokenType::Semicolon);
-        self.emit_opcode(Op::POP);
+        self.emit_basic_opcode(Op::POP);
     }
 
     fn matches(&mut self, token_type: TokenType) -> bool {
@@ -183,16 +234,42 @@ impl Compiler {
         }
     }
 
-    fn check(&mut self,token: TokenType) {
+    fn check(&mut self, token: TokenType) -> bool {
+        if self.debug_mode { println!("Checking: {:?} == {:?}", token, self.parser.peek_type()); }
         if self.parser.cur_is(token) {
             self.advance();
+            true
+        } else {
+            false
         }
     }
 
     fn puts_statement(&mut self) {
-        self.advance();
         self.expression();
-        self.emit_opcode(Op::PRINT);
+        self.emit_basic_opcode(Op::PRINT);
+    }
+
+    fn begin_scope(&mut self) {
+        if self.debug_mode { println!("Begin Scope {}", self.scope.depth + 1); }
+        self.scope.depth += 1;
+    }
+
+    fn end_scope(&mut self) {
+        if self.debug_mode { println!("Exit Scope {}", self.scope.depth); }
+        self.scope.depth -= 1;
+
+        while !self.scope.locals.is_empty() && self.scope.locals.last().unwrap().depth > self.scope.depth {
+            self.emit_basic_opcode(Op::POP);
+            self.scope.locals.pop();
+        }
+    }
+
+    fn block(&mut self) {
+        while !self.parser.cur_is(TokenType::RightBrace) && !self.parser.cur_is(TokenType::EOF) {
+            self.declaration();
+        }
+
+        self.consume(TokenType::RightBrace, "Expected '}' after block");
     }
 
     fn synchronize(&mut self) {
@@ -223,7 +300,7 @@ impl Compiler {
             println!("Parsing Precedence {:?} @ {}", precedence, self.parser.previous());
             self.print_progress();
         }
-        
+
         let assign_mode = if precedence > Precedence::ASSIGNMENT { AssignMode::No } else { AssignMode::Yes }; // if precedence is higher than ASSIGNMENT, then it is an assignment expression. Otherwise, it is not.AssignMode::No;
 
         match ParseRule::for_token(self.parser.previous().token_type).prefix {
@@ -253,25 +330,25 @@ impl Compiler {
         self.parse_precedence(Precedence::UNARY);
 
         match operator {
-            TokenType::Bang => self.emit_opcode(Op::NOT),
-            TokenType::Minus => self.emit_opcode(Op::NEGATE),
+            TokenType::Bang => self.emit_basic_opcode(Op::NOT),
+            TokenType::Minus => self.emit_basic_opcode(Op::NEGATE),
             _ => unreachable!("Not a unary operator"),
         }
     }
-    
+
     pub fn literal(&mut self, assign_mode: AssignMode) {
         if self.debug_mode {
             println!("compiling literal @ {}", self.parser.previous());
         }
         match self.parser.previous().token_type {
-            TokenType::True => self.emit_opcode(Op::TRUE),
-            TokenType::False => self.emit_opcode(Op::FALSE),
+            TokenType::True => self.emit_basic_opcode(Op::TRUE),
+            TokenType::False => self.emit_basic_opcode(Op::FALSE),
             _ => unreachable!("Not a literal"),
         }
     }
 
     pub(crate) fn binary(&mut self) {
-        if self.debug_mode { 
+        if self.debug_mode {
             println!("compiling binary");
             self.print_progress();
         }
@@ -281,24 +358,24 @@ impl Compiler {
         self.parse_precedence(rule.precedence.next());
 
         match operator {
-            TokenType::Plus => self.emit_opcode(Op::ADD),
-            TokenType::Minus => self.emit_opcode(Op::SUB),
-            TokenType::Slash => self.emit_opcode(Op::DIV),
-            TokenType::Star => self.emit_opcode(Op::MUL),
-            TokenType::Greater => self.emit_opcode(Op::GREATER),
-            TokenType::Less => self.emit_opcode(Op::LESS),
-            TokenType::EqEqual => self.emit_opcode(Op::EQUAL),
+            TokenType::Plus => self.emit_basic_opcode(Op::ADD),
+            TokenType::Minus => self.emit_basic_opcode(Op::SUB),
+            TokenType::Slash => self.emit_basic_opcode(Op::DIV),
+            TokenType::Star => self.emit_basic_opcode(Op::MUL),
+            TokenType::Greater => self.emit_basic_opcode(Op::GREATER),
+            TokenType::Less => self.emit_basic_opcode(Op::LESS),
+            TokenType::EqEqual => self.emit_basic_opcode(Op::EQUAL),
             TokenType::GEqual => {
-                self.emit_opcode(Op::LESS);
-                self.emit_opcode(Op::NOT)
+                self.emit_basic_opcode(Op::LESS);
+                self.emit_basic_opcode(Op::NOT)
             },
             TokenType::LEqual => {
-                self.emit_opcode(Op::GREATER);
-                self.emit_opcode(Op::NOT)
+                self.emit_basic_opcode(Op::GREATER);
+                self.emit_basic_opcode(Op::NOT)
             },
             TokenType::NEqual => {
-                self.emit_opcode(Op::EQUAL);
-                self.emit_opcode(Op::NOT)
+                self.emit_basic_opcode(Op::EQUAL);
+                self.emit_basic_opcode(Op::NOT)
             }
             _ => unreachable!("Not a binary operator"), // Actually, there are several more coming.
         };
@@ -318,35 +395,36 @@ impl Compiler {
         }
     }
 
-    fn emit_number(&mut self, value: f64) {
-        let line = self.line;
-        self.current_chunk()
-            .add_constant(WeaveType::Number(value.into()), line);
-    }
-    
     pub fn string(&mut self, assign_mode: AssignMode) {
         if self.debug_mode { println!("compiling string @ {}", self.parser.previous()); }
         let value = self.parser.previous().lexeme.lexeme().to_string();
         self.emit_string(value);
     }
-    
+
     fn emit_string(&mut self, value: String) {
+        if self.debug_mode { println!("Emitting opcode CONSTANT: {} at line {}", value, self.line); }
         let line = self.line;
         self.current_chunk().add_constant(WeaveType::String(value.into()), line);
     }
 
-    fn emit_opcode(&mut self, op: Op) {
+    fn emit_number(&mut self, value: f64) {
         let line = self.line;
+        if self.debug_mode { println!("Emitting opcode CONSTANT: {} at line {} offset {}", value, line, self.current_chunk().code.len()); }
+        self.current_chunk()
+            .add_constant(WeaveType::Number(value.into()), line);
+    }
+
+    fn emit_basic_opcode(&mut self, op: Op) {
+        let line = self.line;
+        if self.debug_mode { println!("Emitting opcode: {:?} at line {} offset {}", op, line, self.current_chunk().code.len()); }
         self.current_chunk().write_op(op, line);
     }
 
-    fn emit_u16(&mut self, u: u16) {
-        self.emit_bytes(u.to_be_bytes().to_vec())
-    }
-
-    fn emit_bytes(&mut self, bytes: Vec<u8>) {
+    fn emit_opcode(&mut self, op: Op, args: &Vec<u8>) {
         let line = self.line;
-        self.current_chunk().write(&bytes, line);
+        if self.debug_mode { println!("Emitting opcode: {:?} {:?} at line {} offset {}", op, args, line, self.current_chunk().code.len()); }
+        self.current_chunk().write_op(op, line);
+        self.current_chunk().write(args, line);
     }
 }
 
@@ -358,5 +436,37 @@ mod tests {
     fn test_compile() {
         let mut compiler = Compiler::new("1 + 2", true);
         assert!(compiler.compile().is_ok(), "Failed to compile");
+    }
+
+    #[test]
+    fn test_compile_global_variables() {
+        let mut compiler = Compiler::new("x = 1", true);
+        let result = compiler.compile();
+        assert!(result.is_ok(), "Failed to compile");
+        assert!(result.unwrap().constants.len() > 0, "Global \"x\" not created");
+    }
+
+    #[test]
+    fn test_compile_local_variables() {
+        let mut compiler = Compiler::new("{ x = 1; x + 3 }", true);
+        let result = compiler.compile();
+        assert!(result.is_ok(), "Failed to compile");
+        let chunk = result.unwrap();
+        chunk.disassemble("Chunk Dump");
+        let bytecode = chunk.code[3];
+        assert!(bytecode == Op::SET_LOCAL.bytecode()[0], "{} != {}", bytecode, Op::SET_LOCAL.bytecode()[0]);
+
+        let bytecode = chunk.code[6];
+        assert!(bytecode == Op::GET_LOCAL.bytecode()[0], "{} != {}", bytecode, Op::GET_LOCAL.bytecode()[0]);
+    }
+
+    #[test]
+    fn test_expression_statement() {
+        let mut compiler = Compiler::new("x = 3; puts x;", true);
+        let result = compiler.compile();
+        assert!(result.is_ok(), "Failed to compile");
+        let chunk = result.unwrap();
+        chunk.disassemble("Chunk Dump");
+        let bytecode = chunk.code[3];
     }
 }
