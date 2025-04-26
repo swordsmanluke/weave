@@ -64,7 +64,7 @@ impl Compiler {
             self.declaration();
         }
         self.consume(TokenType::EOF, "Expected end of file");
-        self.emit_basic_opcode(Op::RETURN);
+        self.emit_basic_opcode(Op::EXIT);
 
         if self.had_error {
             self.chunk.disassemble("Chunk Dump");
@@ -153,7 +153,7 @@ impl Compiler {
     fn variable_get(&mut self) {
         if self.debug_mode { println!("compiling variable GET @ {}", self.parser.previous()); }
         let identifier = self.parser.previous().lexeme.lexeme().to_string();
-        let idx = self.resolve_local(identifier.as_str());
+        let idx = self.resolve_local(identifier.as_str(), AssignMode::No);
         if idx != -1 {
             self.emit_opcode(Op::GET_LOCAL, &vec![idx as u8]);
         } else {
@@ -169,34 +169,43 @@ impl Compiler {
         self.consume(TokenType::Equal, "Expected assignment in declaration");
         self.expression(); // Compile the expression
 
-        self.named_variable(identifier.lexeme.lexeme().to_string());
+        self.set_named_variable(identifier.lexeme.lexeme().to_string());
     }
 
-    fn resolve_local(&self, identifier: &str) -> isize {
-        let mut idx = -1;
-        if self.scope.locals.is_empty() { return idx; }
-
-        for i in (self.scope.locals.len() - 1)..=0 {
-            let local = &self.scope.locals[i];
-            if local.name.as_str() == identifier {
-                idx = i as isize;
-                break;
+    fn resolve_local(&self, identifier: &str, assigning: AssignMode) -> isize {
+        println!("Looking for local var: {}", identifier);
+        println!("Locals: {}", self.scope.locals.iter().map(|l| l.name.as_str()).collect::<Vec<&str>>().join(", "));
+        if self.scope.locals.is_empty() {
+            println!("No local variables");
+            return -1;
+        }
+        
+        for (i, l) in self.scope.locals.iter().enumerate().rev() {
+            if l.name.as_str() == identifier {
+                print!("Found local variable {}", l.name);
+                // Found the variable, but we can only assign to variables in our _immediate_ scope
+                if assigning == AssignMode::Yes { 
+                    println!("... but we're assigning, so create a new var!");
+                    return -1;
+                }
+                println!("... and we're not assigning, so we can use it!");
+                return i as isize; 
             }
         }
-
-        idx
+        
+        return -1;
     }
 
-    fn named_variable(&mut self, identifier: String) {
+    fn set_named_variable(&mut self, identifier: String) {
         if self.scope.depth > 0 {
-            let idx = self.resolve_local(identifier.as_str());
+            let idx = self.resolve_local(identifier.as_str(), AssignMode::Yes);
             if idx != -1 {
                 self.emit_opcode(Op::SET_LOCAL, &[idx as u8].to_vec());
             } else {
                 // Create new variable
                 let local = Local { name: identifier.into(), depth: self.scope.depth };
                 self.scope.locals.push(local);
-                self.emit_opcode(Op::SET_LOCAL, &[0 as u8].to_vec());
+                self.emit_opcode(Op::SET_LOCAL, &[self.scope.locals.len() as u8  - 1].to_vec());
             }
         } else {
             self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
@@ -435,7 +444,7 @@ impl Compiler {
         };
         
         if safe_offset >= self.current_chunk().code.len() {
-            return Op::RETURN;
+            return Op::EXIT;
         } 
         
         Op::at(self.current_chunk().code[safe_offset])
@@ -470,7 +479,7 @@ mod tests {
         let bytecode = chunk.code[3];
         assert!(bytecode == Op::SET_LOCAL.bytecode()[0], "{} != {}", bytecode, Op::SET_LOCAL.bytecode()[0]);
 
-        let bytecode = chunk.code[6];
+        let bytecode = chunk.code[5];
         assert!(bytecode == Op::GET_LOCAL.bytecode()[0], "{} != {}", bytecode, Op::GET_LOCAL.bytecode()[0]);
     }
 

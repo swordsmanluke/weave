@@ -49,7 +49,7 @@ impl VM {
     }
 
     pub fn interpret(&mut self, source: &str) -> VMResult {
-        let mut compiler = Compiler::new(source, false);
+        let mut compiler = Compiler::new(source, self.debug_mode);
         self.debug(&format!("Compiling...\n{}", source));
         let chunk = match compiler.compile() {
             Ok(c) => c,
@@ -138,12 +138,13 @@ impl VM {
             self.debug(&format!("  - {:?}", self.stack));
             match op {
                 Op::RETURN => {
-                    match self._pop() {
+                    match self._peek() {
                         WeaveType::None => {}
                         v => { self.last_value = v; }
                     }
                     self.debug(&format!("Returning: {} from depth {}", self.last_value, self.stack.len()));
-                }, 
+                },
+                Op::EXIT => { break; },
                 Op::POP => { self._pop(); },
                 Op::CONSTANT => {
                     let v = Ok(self._read_constant(ip.next_u16() as usize).clone());
@@ -278,43 +279,39 @@ mod tests {
         let res = vm.interpret("5 + 2 * 3");
         // assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(11.0));
+        assert_eq!(vm.stack[0], WeaveType::from(11.0));
     }
 
     #[test]
     fn test_parenthesis() {
         let mut vm = VM::new(true);
         let res = vm.interpret("(5 + 2) * 3");
-        assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(21.0));
+        assert_eq!(vm.stack[0], WeaveType::from(21.0));
     }
 
     #[test]
     fn test_negate() {
         let mut vm = VM::new(true);
         let res = vm.interpret("-5");
-        assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(-5.0));
+        assert_eq!(vm.stack[0], WeaveType::from(-5.0));
     }
 
     #[test]
     fn test_string_literal() {
         let mut vm = VM::new(true);
         let res = vm.interpret("\"hello\"");
-        assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from("hello"));
+        assert_eq!(vm.stack[0], WeaveType::from("hello"));
     }
     
     #[test]
     fn test_var_addition() {
         let mut vm = VM::new(true);
         let res = vm.interpret("x = 5\nx + 2");
-        assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(vm.last_value, WeaveType::from(7.0));
+        assert_eq!(vm.stack[0], WeaveType::from(7.0));
     }
 
     #[test]
@@ -361,5 +358,16 @@ mod tests {
         // assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.last_value, WeaveType::from(4.0));
+    }
+
+    #[test]
+    fn test_nested_scopes() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("{ x = 2; { x = 1; x = x + 3 } puts x; }");
+        if res.is_err() {
+            vm.chunk.unwrap().disassemble("Nested Scopes");
+        }
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(vm.last_value, WeaveType::from(2.0));
     }
 }

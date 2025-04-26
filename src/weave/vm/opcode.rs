@@ -30,6 +30,7 @@ pub enum Op {
     DIV,
     
     // Control
+    EXIT,
     RETURN,
     POP,
 
@@ -59,6 +60,7 @@ impl Op {
             Op::GET_GLOBAL => vec![16],
             Op::SET_LOCAL => vec![17],
             Op::GET_LOCAL => vec![18],
+            Op::EXIT => vec![19],
         }
     }
 
@@ -84,6 +86,7 @@ impl Op {
             16 => Op::GET_GLOBAL,
             17 => Op::SET_LOCAL,
             18 => Op::GET_LOCAL,
+            19 => Op::EXIT,
 
             _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.
         }
