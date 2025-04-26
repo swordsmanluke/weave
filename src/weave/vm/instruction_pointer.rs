@@ -18,6 +18,10 @@ impl IP {
             debug_mode
         }
     }
+    
+    pub fn is_at_end(&self) -> bool {
+        self.ip >= self.code.len()
+    }
 
     pub fn next(&mut self) -> u8 {
         self.debug(&format!("IP ({:0x}) -> {1:0x}", self.ip, *self.code.get(self.ip).unwrap_or(&0)));

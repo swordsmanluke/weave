@@ -222,7 +222,6 @@ impl Compiler {
     fn expression_statement(&mut self) {
         self.expression();
         self.check(TokenType::Semicolon);
-        self.emit_basic_opcode(Op::POP);
     }
 
     fn matches(&mut self, token_type: TokenType) -> bool {
@@ -257,7 +256,8 @@ impl Compiler {
     fn end_scope(&mut self) {
         if self.debug_mode { println!("Exit Scope {}", self.scope.depth); }
         self.scope.depth -= 1;
-
+        
+        self.emit_basic_opcode(Op::RETURN);  // Set the last value of the stack for returning to reference of scope 
         while !self.scope.locals.is_empty() && self.scope.locals.last().unwrap().depth > self.scope.depth {
             self.emit_basic_opcode(Op::POP);
             self.scope.locals.pop();
@@ -425,6 +425,20 @@ impl Compiler {
         if self.debug_mode { println!("Emitting opcode: {:?} {:?} at line {} offset {}", op, args, line, self.current_chunk().code.len()); }
         self.current_chunk().write_op(op, line);
         self.current_chunk().write(args, line);
+    }
+
+    fn opcode_at(&mut self, offset: i32) -> Op {
+        let safe_offset = if offset < 0 {
+            (self.current_chunk().code.len() as i32 + offset) as usize
+        } else {
+            offset as usize
+        };
+        
+        if safe_offset >= self.current_chunk().code.len() {
+            return Op::RETURN;
+        } 
+        
+        Op::at(self.current_chunk().code[safe_offset])
     }
 }
 

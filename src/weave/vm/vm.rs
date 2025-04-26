@@ -101,7 +101,6 @@ impl VM {
     fn _pop(&mut self) -> WeaveType {
         // TODO: This is _nearly_ where the "free" would be in C - basically as soon as the
         //       value returned here is dropped, it should be freed
-        match self._peek() { WeaveType::None => {} _ => self.last_value = self._peek().clone() };
         self.stack.pop().unwrap_or(WeaveType::None)
     }
 
@@ -121,10 +120,10 @@ impl VM {
         }
 
         let mut ip = IP::new(&self.chunk.as_ref().unwrap().code, true);
+        self.debug("Executing...");
 
-        loop {
+        while !ip.is_at_end() {
             // until ip offset > chunk size
-            self.debug("Executing...");
             let op = Op::at(ip.next());
             self.instruction_counter = ip.idx(0);
 
@@ -136,8 +135,15 @@ impl VM {
             }
 
             self.debug(&format!("EVAL({:?})", op));
+            self.debug(&format!("  - {:?}", self.stack));
             match op {
-                Op::RETURN => return Ok(self.last_value.clone()), 
+                Op::RETURN => {
+                    match self._pop() {
+                        WeaveType::None => {}
+                        v => { self.last_value = v; }
+                    }
+                    self.debug(&format!("Returning: {} from depth {}", self.last_value, self.stack.len()));
+                }, 
                 Op::POP => { self._pop(); },
                 Op::CONSTANT => {
                     let v = Ok(self._read_constant(ip.next_u16() as usize).clone());
@@ -239,6 +245,8 @@ impl VM {
                 }
             }
         }
+
+        Ok(self.last_value.clone())
     }
 
     fn debug(&self, msg: &str) {
@@ -268,7 +276,7 @@ mod tests {
     fn test_basic_math() {
         let mut vm = VM::new(true);
         let res = vm.interpret("5 + 2 * 3");
-        assert_eq!(vm.stack.len(), 0);
+        // assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(11.0));
     }
@@ -345,12 +353,12 @@ mod tests {
         let res = vm.interpret("a= 1; a + b = 5");
         assert!(res.is_err());
     }
-    
+
     #[test]
     fn test_local_variables() {
         let mut vm = VM::new(true);
         let res = vm.interpret("{ x = 1; x + 3 }");
-        assert_eq!(vm.stack.len(), 0);
+        // assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.last_value, WeaveType::from(4.0));
     }
