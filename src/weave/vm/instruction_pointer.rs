@@ -36,9 +36,15 @@ impl IP {
         hi << 8 | lo
     }
 
-    pub fn jump(&mut self, target: usize) {
-        if self.debug_mode {  println!("Jumping to {}", target); }
-        self.ip = target;
+    pub(crate) fn next_i16(&mut self) -> i16 {
+        let hi = self.next() as i16;
+        let lo = self.next() as i16;
+        hi << 8 | lo
+    }
+    pub fn jump(&mut self, jmp_offset: u16) {
+        let jmp_offset = self.ip + jmp_offset as usize;
+        if self.debug_mode {  println!("Jumping to {:0x}", jmp_offset); }
+        self.ip = jmp_offset;
     }
     
     pub fn idx(&self, offset: isize) -> usize {

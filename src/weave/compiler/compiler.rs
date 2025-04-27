@@ -39,17 +39,17 @@ impl Scope {
             depth: 0
         }
     }
-    
+
     fn incr(&mut self, scope_type: ScopeType) {
         self.scope_type.push(scope_type);
         self.depth += 1;
     }
-    
+
     fn decr(&mut self) {
         self.scope_type.pop();
         self.depth -= 1;
     }
-    
+
     pub fn enter_if_scope(&mut self) { self.incr(ScopeType::If); }
     pub fn enter_fn_scope(&mut self) { self.incr(ScopeType::Fn); }
     pub fn enter_gen_scope(&mut self) { self.incr(ScopeType::General); }
@@ -218,7 +218,7 @@ impl Compiler {
             if l.name.as_str() == identifier {
                 print!("Found local variable {}", l.name);
                 // Found the variable, but we can only assign to variables in our _immediate_ scope
-                if self.scope.should_shadow() { 
+                if self.scope.should_shadow() {
                     println!("....but we're shadowing, so create a new var!");
                     return -1;
                 }
@@ -254,19 +254,7 @@ impl Compiler {
         if self.check(TokenType::Puts) {
             self.puts_statement();
         } else if self.check(TokenType::If) {
-            self.consume(TokenType::LeftParen, "Expected '(' after 'if'");
-            self.expression();
-            self.consume(TokenType::RightParen, "Expected ')' after condition");
-            let then_jump = self.emit_jump(Op::JumpIfFalse);
-            self.statement();
-            self.patch_jump(then_jump);
-
-            // TODO:
-            // self.statement();
-            // if self.check(TokenType::Else) {
-            //     self.advance();
-            //     self.statement();
-            // }
+            self.if_statement();
         } else if self.check(TokenType::LeftBrace) {
             self.begin_scope();
             self.block();
@@ -274,6 +262,28 @@ impl Compiler {
         } else {
             self.expression_statement();
         }
+    }
+
+    fn if_statement(&mut self) {
+        // TODO: This is `lox` syntax. I need to update this to be Weave syntax:
+        //  IF cond BLOCK [ELSE [IF cond] BLOCK]
+        // ex: if some_cond { do_thing() } else { do_other_thing() }
+        // No parens required, but allowed since any expression can be wrapped in parens.
+        // The 'then' block must be wrapped in curly braces, however.
+        self.consume(TokenType::LeftParen, "Expected '(' after 'if'");
+        self.expression();
+        self.consume(TokenType::RightParen, "Expected ')' after condition");
+
+        let then_jump = self.emit_jump(Op::JumpIfFalse);
+        self.emit_basic_opcode(Op::POP);
+        
+        self.statement();
+        let else_jump = self.emit_jump(Op::Jump);
+        self.patch_jump(then_jump);
+
+        self.emit_basic_opcode(Op::POP);
+        if self.check(TokenType::Else) { self.statement(); }
+        self.patch_jump(else_jump);
     }
 
     fn expression_statement(&mut self) {
@@ -301,7 +311,7 @@ impl Compiler {
         match self.parser.previous().token_type {
             TokenType::If => self.scope.enter_if_scope(),
             TokenType::FN => self.scope.enter_fn_scope(),
-            _ => self.scope.enter_gen_scope(),  // just a local scoped statement like "a=1; { a += 2; }" we should shadow here. 
+            _ => self.scope.enter_gen_scope(),  // just a local scoped statement like "a=1; { a += 2; }" we should shadow here.
         }
     }
 
@@ -310,7 +320,7 @@ impl Compiler {
         self.scope.exit_scope();
         
         self.emit_basic_opcode(Op::RETURN);  // Set the last value of the stack for returning to reference of scope 
-        
+
         while !self.scope.locals.is_empty() && self.scope.locals.last().unwrap().depth > self.scope.depth {
             self.emit_basic_opcode(Op::POP);
             self.scope.locals.pop();
@@ -485,10 +495,10 @@ impl Compiler {
         self.current_chunk().code.len() - 2
     }
 
-    fn patch_jump(&mut self, offset: usize) {
-        let jump = self.current_chunk().code.len() - 2;
-        self.current_chunk().code[offset] = (jump >> 8) as u8;
-        self.current_chunk().code[offset + 1] = (jump & 0xFF) as u8;
+    fn patch_jump(&mut self, jmp_param: usize) {
+        let jump = self.current_chunk().code.len() - jmp_param - 2;
+        self.current_chunk().code[jmp_param] = (jump >> 8) as u8;
+        self.current_chunk().code[jmp_param + 1] = (jump & 0xFF) as u8;
     }
 }
 

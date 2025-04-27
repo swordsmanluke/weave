@@ -243,10 +243,14 @@ impl VM {
                 Op::PRINT => {
                     println!("{}", self._pop());
                 }
+                Op::Jump => {
+                    let jmp_target = ip.next_u16();
+                    ip.jump(jmp_target);
+                }
                 Op::JumpIfFalse => {
-                    let jmp_target = ip.next_u16() as usize;
-                    if !self._pop().truthy() {
-                        ip.jump(jmp_target);
+                    let jmp_offset = ip.next_u16();
+                    if !self._peek().truthy() {
+                        ip.jump(jmp_offset);
                     }
                 }
             }
@@ -282,7 +286,6 @@ mod tests {
     fn test_basic_math() {
         let mut vm = VM::new(true);
         let res = vm.interpret("5 + 2 * 3");
-        // assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.stack[0], WeaveType::from(11.0));
     }
@@ -409,12 +412,32 @@ mod tests {
 
     #[test]
     fn test_if_false_condition() {
-        let mut vm = VM::new(true);
-        let res = vm.interpret("{
+        let code = "{
         a = 1;
         if (false) { a = a + 1 }
-        a}");
+        a
+        }";
+        let mut vm = VM::new(true);
+        let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.last_value, WeaveType::from(1.0));
     }
+    
+    #[test]
+    fn test_if_else_condition() {
+        let code = "{
+        a = 1;
+        if (false) { 
+            a = a + 1 
+        } else { 
+            a = a + 2 
+        }
+        a
+        }";
+        let mut vm = VM::new(true);
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(vm.last_value, WeaveType::from(3.0));
+    }
+    
 }

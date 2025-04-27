@@ -29,6 +29,7 @@ pub enum Op {
     DIV,
     
     // Control
+    Jump,
     JumpIfFalse,
     EXIT,
     RETURN,
@@ -63,6 +64,7 @@ impl Op {
             Op::GetLocal => vec![18],
             Op::EXIT => vec![19],
             Op::JumpIfFalse => vec![20],
+            Op::Jump => vec![21],
         }
     }
 
@@ -90,6 +92,7 @@ impl Op {
             18 => Op::GetLocal,
             19 => Op::EXIT,
             20 => Op::JumpIfFalse,
+            21 => Op::Jump,
 
             _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.
         }
@@ -119,13 +122,13 @@ impl Disassemble for Op {
                 writeln!(f, "\t{0:04x}  {1}", idx, value).unwrap();
                 offset
             },
-            Op::JumpIfFalse => {
+            Op::Jump | Op::JumpIfFalse => {
                 let mut offset = offset;
-                write!(f, "{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self,).unwrap();
+                write!(f, "{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self).unwrap();
                 offset += 1; // We've read our opcode, next, get the jump offset
                 let jump = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
                 offset += 2;
-                writeln!(f, "\t{0:04x}", jump).unwrap();
+                writeln!(f, "\t{0:04x}", offset + jump).unwrap();
                 
                 offset
             }
