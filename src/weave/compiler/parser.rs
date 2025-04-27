@@ -9,7 +9,7 @@ pub(crate) struct Parser {
 impl  Parser {
     pub fn new(code: &str) -> Parser {
         Parser {
-            scanner: Scanner::new(code, false),
+            scanner: Scanner::new(code, true),
             tokens: Vec::new(),
         }
     }

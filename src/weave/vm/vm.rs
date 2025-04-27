@@ -350,6 +350,26 @@ mod tests {
         let res = vm.interpret("a= 1; a + b = 5");
         assert!(res.is_err());
     }
+    
+    #[test]
+    fn test_shadowing_self() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("a = 1; 
+        { 
+            a = a
+            a = a + 2
+        } 
+        a");
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(vm.last_value, WeaveType::from(1.0));
+    }
+    
+    #[test]
+    fn test_bad_initializer() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("a = a");
+        assert!(res.is_err());
+    }
 
     #[test]
     fn test_local_variables() {

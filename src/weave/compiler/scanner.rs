@@ -100,6 +100,7 @@ impl Scanner {
                     self.advance();
                 }
                 '\n' => {
+                    if self.debug_mode { println!("scanner: increasing line due to newline char"); }
                     self.line += 1;
                     self.advance();
                 }
