@@ -414,7 +414,7 @@ mod tests {
     fn test_if_false_condition() {
         let code = "{
         a = 1;
-        if (false) { a = a + 1 }
+        if false { a = a + 1 }
         a
         }";
         let mut vm = VM::new(true);
@@ -427,7 +427,7 @@ mod tests {
     fn test_if_else_condition() {
         let code = "{
         a = 1;
-        if (false) { 
+        if false { 
             a = a + 1 
         } else { 
             a = a + 2 
@@ -440,4 +440,18 @@ mod tests {
         assert_eq!(vm.last_value, WeaveType::from(3.0));
     }
     
+    
+    #[test]
+    fn test_if_syntax() {
+        let code = "
+            if false { 
+                puts 1 
+            } else {
+                puts 2
+            }
+        ";
+        let mut vm = VM::new(true);
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+    }
 }

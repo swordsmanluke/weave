@@ -265,24 +265,27 @@ impl Compiler {
     }
 
     fn if_statement(&mut self) {
-        // TODO: This is `lox` syntax. I need to update this to be Weave syntax:
-        //  IF cond BLOCK [ELSE [IF cond] BLOCK]
-        // ex: if some_cond { do_thing() } else { do_other_thing() }
-        // No parens required, but allowed since any expression can be wrapped in parens.
-        // The 'then' block must be wrapped in curly braces, however.
-        self.consume(TokenType::LeftParen, "Expected '(' after 'if'");
-        self.expression();
-        self.consume(TokenType::RightParen, "Expected ')' after condition");
-
-        let then_jump = self.emit_jump(Op::JumpIfFalse);
-        self.emit_basic_opcode(Op::POP);
+        self.expression_statement();  // Condition
         
-        self.statement();
+        // Set up the jump to evaluate the condition
+        let then_jump = self.emit_jump(Op::JumpIfFalse);
+        self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
+
+        // Compile the 'then' block
+        self.consume(TokenType::LeftBrace, "Expected Block after condition");
+        self.block();
+        
+        // Skip the 'else' block when the condition is true
         let else_jump = self.emit_jump(Op::Jump);
         self.patch_jump(then_jump);
 
+        // Another place we may need to pop the condition
         self.emit_basic_opcode(Op::POP);
-        if self.check(TokenType::Else) { self.statement(); }
+        if self.check(TokenType::Else) {
+            // Compile the 'else' block
+            self.consume(TokenType::LeftBrace, "Expected Block after 'else'");
+            self.block(); 
+        }
         self.patch_jump(else_jump);
     }
 
