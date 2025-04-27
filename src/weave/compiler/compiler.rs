@@ -6,7 +6,6 @@ use crate::weave::compiler::precedence::Precedence;
 use crate::weave::compiler::token::{Token, TokenType};
 use crate::weave::vm::types::WeaveType;
 use crate::weave::{Chunk, Op};
-use crate::weave::compiler::precedence;
 
 pub type CompileResult = Result<Chunk, String>;
 
@@ -27,12 +26,47 @@ struct Local {
 
 struct Scope {
     locals: Vec<Local>,
+    scope_type: Vec<ScopeType>,
     depth: u8
+}
+
+
+impl Scope {
+    fn new() -> Scope {
+        Scope {
+            locals: Vec::new(),
+            scope_type: Vec::new(),
+            depth: 0
+        }
+    }
+    
+    fn incr(&mut self, scope_type: ScopeType) {
+        self.scope_type.push(scope_type);
+        self.depth += 1;
+    }
+    
+    fn decr(&mut self) {
+        self.scope_type.pop();
+        self.depth -= 1;
+    }
+    
+    pub fn enter_if_scope(&mut self) { self.incr(ScopeType::If); }
+    pub fn enter_fn_scope(&mut self) { self.incr(ScopeType::Fn); }
+    pub fn enter_gen_scope(&mut self) { self.incr(ScopeType::General); }
+    pub fn exit_scope(&mut self) { self.decr(); }
+    pub fn should_shadow(&self) -> bool { self.scope_type.last() == Some(&ScopeType::Fn) }
 }
 
 pub enum AssignMode {
     Yes,
     No
+}
+
+#[derive(PartialEq)]
+enum ScopeType {
+    If,
+    Fn,
+    General,
 }
 
 impl PartialEq for AssignMode {
@@ -53,7 +87,7 @@ impl Compiler {
             had_error: false,
             panic_mode: false,
             chunk: Chunk::new(),
-            scope: Scope { locals: Vec::new(), depth: 0 },
+            scope: Scope::new(),
             debug_mode,
         }
     }
@@ -153,12 +187,12 @@ impl Compiler {
     fn variable_get(&mut self) {
         if self.debug_mode { println!("compiling variable GET @ {}", self.parser.previous()); }
         let identifier = self.parser.previous().lexeme.lexeme().to_string();
-        let idx = self.resolve_local(identifier.as_str(), AssignMode::No);
+        let idx = self.resolve_local(identifier.as_str());
         if idx != -1 {
-            self.emit_opcode(Op::GET_LOCAL, &vec![idx as u8]);
+            self.emit_opcode(Op::GetLocal, &vec![idx as u8]);
         } else {
             self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
-            self.emit_basic_opcode(Op::GET_GLOBAL);
+            self.emit_basic_opcode(Op::GetGlobal);
         }
     }
 
@@ -172,7 +206,7 @@ impl Compiler {
         self.set_named_variable(identifier.lexeme.lexeme().to_string());
     }
 
-    fn resolve_local(&self, identifier: &str, assigning: AssignMode) -> isize {
+    fn resolve_local(&self, identifier: &str) -> isize {
         println!("Looking for local var: {}", identifier);
         println!("Locals: {}", self.scope.locals.iter().map(|l| l.name.as_str()).collect::<Vec<&str>>().join(", "));
         if self.scope.locals.is_empty() {
@@ -184,11 +218,11 @@ impl Compiler {
             if l.name.as_str() == identifier {
                 print!("Found local variable {}", l.name);
                 // Found the variable, but we can only assign to variables in our _immediate_ scope
-                if assigning == AssignMode::Yes { 
-                    println!("... but we're assigning, so create a new var!");
+                if self.scope.should_shadow() { 
+                    println!("....but we're shadowing, so create a new var!");
                     return -1;
                 }
-                println!("... and we're not assigning, so we can use it!");
+                println!("... and we're not shadowing, so we can use it!");
                 return i as isize; 
             }
         }
@@ -198,18 +232,18 @@ impl Compiler {
 
     fn set_named_variable(&mut self, identifier: String) {
         if self.scope.depth > 0 {
-            let idx = self.resolve_local(identifier.as_str(), AssignMode::Yes);
+            let idx = self.resolve_local(identifier.as_str());
             if idx != -1 {
-                self.emit_opcode(Op::SET_LOCAL, &[idx as u8].to_vec());
+                self.emit_opcode(Op::SetLocal, &[idx as u8].to_vec());
             } else {
                 // Create new variable
                 let local = Local { name: identifier.into(), depth: self.scope.depth };
                 self.scope.locals.push(local);
-                self.emit_opcode(Op::SET_LOCAL, &[self.scope.locals.len() as u8  - 1].to_vec());
+                self.emit_opcode(Op::SetLocal, &[self.scope.locals.len() as u8  - 1].to_vec());
             }
         } else {
             self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
-            self.emit_basic_opcode(Op::SET_GLOBAL);
+            self.emit_basic_opcode(Op::SetGlobal);
         }
     }
 
@@ -219,6 +253,20 @@ impl Compiler {
 
         if self.check(TokenType::Puts) {
             self.puts_statement();
+        } else if self.check(TokenType::If) {
+            self.consume(TokenType::LeftParen, "Expected '(' after 'if'");
+            self.expression();
+            self.consume(TokenType::RightParen, "Expected ')' after condition");
+            let then_jump = self.emit_jump(Op::JumpIfFalse);
+            self.statement();
+            self.patch_jump(then_jump);
+
+            // TODO:
+            // self.statement();
+            // if self.check(TokenType::Else) {
+            //     self.advance();
+            //     self.statement();
+            // }
         } else if self.check(TokenType::LeftBrace) {
             self.begin_scope();
             self.block();
@@ -231,15 +279,6 @@ impl Compiler {
     fn expression_statement(&mut self) {
         self.expression();
         self.check(TokenType::Semicolon);
-    }
-
-    fn matches(&mut self, token_type: TokenType) -> bool {
-        if self.parser.cur_is(token_type) {
-            self.advance();
-            true
-        } else {
-            false
-        }
     }
 
     fn check(&mut self, token: TokenType) -> bool {
@@ -259,14 +298,19 @@ impl Compiler {
 
     fn begin_scope(&mut self) {
         if self.debug_mode { println!("Begin Scope {}", self.scope.depth + 1); }
-        self.scope.depth += 1;
+        match self.parser.previous().token_type {
+            TokenType::If => self.scope.enter_if_scope(),
+            TokenType::FN => self.scope.enter_fn_scope(),
+            _ => self.scope.enter_gen_scope(),  // just a local scoped statement like "a=1; { a += 2; }" we should shadow here. 
+        }
     }
 
     fn end_scope(&mut self) {
         if self.debug_mode { println!("Exit Scope {}", self.scope.depth); }
-        self.scope.depth -= 1;
+        self.scope.exit_scope();
         
         self.emit_basic_opcode(Op::RETURN);  // Set the last value of the stack for returning to reference of scope 
+        
         while !self.scope.locals.is_empty() && self.scope.locals.last().unwrap().depth > self.scope.depth {
             self.emit_basic_opcode(Op::POP);
             self.scope.locals.pop();
@@ -326,12 +370,12 @@ impl Compiler {
         }
     }
 
-    pub(crate) fn grouping(&mut self, assign_mode: AssignMode) {
+    pub(crate) fn grouping(&mut self, _assign_mode: AssignMode) {
         self.expression();
         self.consume(TokenType::RightParen, "Expected ')' after expression");
     }
 
-    pub(crate) fn unary(&mut self, assign_mode: AssignMode) {
+    pub(crate) fn unary(&mut self, _assign_mode: AssignMode) {
         if self.debug_mode {
             println!("compiling unary @ {}", self.parser.previous());
         }
@@ -345,7 +389,7 @@ impl Compiler {
         }
     }
 
-    pub fn literal(&mut self, assign_mode: AssignMode) {
+    pub fn literal(&mut self, _assign_mode: AssignMode) {
         if self.debug_mode {
             println!("compiling literal @ {}", self.parser.previous());
         }
@@ -390,7 +434,7 @@ impl Compiler {
         };
     }
 
-    pub fn number(&mut self, assign_mode: AssignMode) {
+    pub fn number(&mut self, _assign_mode: AssignMode) {
         if self.debug_mode {
             println!("compiling number @ {}", self.parser.previous());
         }
@@ -404,7 +448,7 @@ impl Compiler {
         }
     }
 
-    pub fn string(&mut self, assign_mode: AssignMode) {
+    pub fn string(&mut self, _assign_mode: AssignMode) {
         if self.debug_mode { println!("compiling string @ {}", self.parser.previous()); }
         let value = self.parser.previous().lexeme.lexeme().to_string();
         self.emit_string(value);
@@ -436,18 +480,15 @@ impl Compiler {
         self.current_chunk().write(args, line);
     }
 
-    fn opcode_at(&mut self, offset: i32) -> Op {
-        let safe_offset = if offset < 0 {
-            (self.current_chunk().code.len() as i32 + offset) as usize
-        } else {
-            offset as usize
-        };
-        
-        if safe_offset >= self.current_chunk().code.len() {
-            return Op::EXIT;
-        } 
-        
-        Op::at(self.current_chunk().code[safe_offset])
+    fn emit_jump(&mut self, op: Op) -> usize {
+        self.emit_opcode(op, &vec![0xFF, 0xFF]);
+        self.current_chunk().code.len() - 2
+    }
+
+    fn patch_jump(&mut self, offset: usize) {
+        let jump = self.current_chunk().code.len() - 2;
+        self.current_chunk().code[offset] = (jump >> 8) as u8;
+        self.current_chunk().code[offset + 1] = (jump & 0xFF) as u8;
     }
 }
 
@@ -477,10 +518,10 @@ mod tests {
         let chunk = result.unwrap();
         chunk.disassemble("Chunk Dump");
         let bytecode = chunk.code[3];
-        assert!(bytecode == Op::SET_LOCAL.bytecode()[0], "{} != {}", bytecode, Op::SET_LOCAL.bytecode()[0]);
+        assert!(bytecode == Op::SetLocal.bytecode()[0], "{} != {}", bytecode, Op::SetLocal.bytecode()[0]);
 
         let bytecode = chunk.code[5];
-        assert!(bytecode == Op::GET_LOCAL.bytecode()[0], "{} != {}", bytecode, Op::GET_LOCAL.bytecode()[0]);
+        assert!(bytecode == Op::GetLocal.bytecode()[0], "{} != {}", bytecode, Op::GetLocal.bytecode()[0]);
     }
 
     #[test]
@@ -488,8 +529,5 @@ mod tests {
         let mut compiler = Compiler::new("x = 3; puts x;", true);
         let result = compiler.compile();
         assert!(result.is_ok(), "Failed to compile");
-        let chunk = result.unwrap();
-        chunk.disassemble("Chunk Dump");
-        let bytecode = chunk.code[3];
     }
 }

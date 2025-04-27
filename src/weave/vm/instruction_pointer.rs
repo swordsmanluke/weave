@@ -1,5 +1,3 @@
-use crate::weave::Op;
-
 pub(crate) struct IP {
     pub ip: usize,
     code: Vec<u8>,
@@ -36,6 +34,11 @@ impl IP {
         let hi = self.next() as u16;
         let lo = self.next() as u16;
         hi << 8 | lo
+    }
+
+    pub fn jump(&mut self, target: usize) {
+        if self.debug_mode {  println!("Jumping to {}", target); }
+        self.ip = target;
     }
     
     pub fn idx(&self, offset: isize) -> usize {

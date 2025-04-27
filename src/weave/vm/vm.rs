@@ -1,6 +1,5 @@
 use crate::weave::compiler::Compiler;
 use crate::weave::vm::instruction_pointer::IP;
-use crate::weave::vm::traits::Disassemble;
 use crate::weave::vm::types::WeaveType;
 use crate::weave::vm::types::errors::OpResult;
 use crate::weave::{Chunk, Op};
@@ -150,15 +149,15 @@ impl VM {
                     let v = Ok(self._read_constant(ip.next_u16() as usize).clone());
                     self._push(v)?;
                 }
-                Op::SET_LOCAL => {
+                Op::SetLocal => {
                     let slot = ip.next() as usize;
                     self.stack[slot] = self._peek();
                 }
-                Op::GET_LOCAL => {
+                Op::GetLocal => {
                     let slot = ip.next() as usize;
                     self._push(Ok(self.stack[slot].clone()))?;
                 }
-                Op::SET_GLOBAL => {
+                Op::SetGlobal => {
                     // Previous to this we should have processed an expression (val)
                     // then pushed the name of the global we want to bind it to
                     // and now we need to actually bind it.
@@ -182,7 +181,7 @@ impl VM {
                         }
                     }
                 }
-                Op::GET_GLOBAL => {
+                Op::GetGlobal => {
                     let name = self._pop();
                     match name {
                         WeaveType::String(name) => match self.globals.get(name.as_str()) {
@@ -243,6 +242,12 @@ impl VM {
                 }
                 Op::PRINT => {
                     println!("{}", self._pop());
+                }
+                Op::JumpIfFalse => {
+                    let jmp_target = ip.next_u16() as usize;
+                    if !self._pop().truthy() {
+                        ip.jump(jmp_target);
+                    }
                 }
             }
         }
@@ -350,20 +355,21 @@ mod tests {
         let res = vm.interpret("a= 1; a + b = 5");
         assert!(res.is_err());
     }
-    
+
     #[test]
     fn test_shadowing_self() {
         let mut vm = VM::new(true);
-        let res = vm.interpret("a = 1; 
-        { 
-            a = a
-            a = a + 2
-        } 
+        let res = vm.interpret("
+        a = 1;  # Global var
+        {
+            a = a   # Shadows global with a local
+            a = a + 2  # Increments local
+        }
         a");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(vm.last_value, WeaveType::from(1.0));
+        assert_eq!(vm.stack.pop(), Some(WeaveType::from(1.0)));
     }
-    
+
     #[test]
     fn test_bad_initializer() {
         let mut vm = VM::new(true);
@@ -375,7 +381,6 @@ mod tests {
     fn test_local_variables() {
         let mut vm = VM::new(true);
         let res = vm.interpret("{ x = 1; x + 3 }");
-        // assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.last_value, WeaveType::from(4.0));
     }
@@ -388,6 +393,28 @@ mod tests {
             vm.chunk.unwrap().disassemble("Nested Scopes");
         }
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(vm.last_value, WeaveType::from(4.0));
+    }
+    
+    #[test]
+    fn test_if_true_condition() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("{
+        a = 1;
+        if (true) { a = a + 1 }
+        a}");
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.last_value, WeaveType::from(2.0));
+    }
+
+    #[test]
+    fn test_if_false_condition() {
+        let mut vm = VM::new(true);
+        let res = vm.interpret("{
+        a = 1;
+        if (false) { a = a + 1 }
+        a}");
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(vm.last_value, WeaveType::from(1.0));
     }
 }

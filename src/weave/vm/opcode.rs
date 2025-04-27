@@ -1,5 +1,4 @@
 use std::io::Write;
-use std::fmt::{Formatter};
 use crate::weave::Chunk;
 use crate::weave::vm::traits::disassemble::Disassemble;
 
@@ -9,10 +8,10 @@ pub enum Op {
     TRUE,
     FALSE,
     CONSTANT,  // TODO: Always 64 bit double right now. Fix that.
-    SET_GLOBAL,
-    GET_GLOBAL,
-    SET_LOCAL,
-    GET_LOCAL,
+    SetGlobal,
+    GetGlobal,
+    SetLocal,
+    GetLocal,
     
     // Boolean
     NOT,
@@ -30,12 +29,14 @@ pub enum Op {
     DIV,
     
     // Control
+    JumpIfFalse,
     EXIT,
     RETURN,
     POP,
 
     // IO
     PRINT,
+
 }
 
 impl Op {
@@ -56,11 +57,12 @@ impl Op {
             Op::EQUAL => vec![12],
             Op::PRINT => vec![13],
             Op::POP => vec![14],
-            Op::SET_GLOBAL => vec![15],
-            Op::GET_GLOBAL => vec![16],
-            Op::SET_LOCAL => vec![17],
-            Op::GET_LOCAL => vec![18],
+            Op::SetGlobal => vec![15],
+            Op::GetGlobal => vec![16],
+            Op::SetLocal => vec![17],
+            Op::GetLocal => vec![18],
             Op::EXIT => vec![19],
+            Op::JumpIfFalse => vec![20],
         }
     }
 
@@ -82,11 +84,12 @@ impl Op {
             12 => Op::EQUAL,
             13 => Op::PRINT,
             14 => Op::POP,
-            15 => Op::SET_GLOBAL,
-            16 => Op::GET_GLOBAL,
-            17 => Op::SET_LOCAL,
-            18 => Op::GET_LOCAL,
+            15 => Op::SetGlobal,
+            16 => Op::GetGlobal,
+            17 => Op::SetLocal,
+            18 => Op::GetLocal,
             19 => Op::EXIT,
+            20 => Op::JumpIfFalse,
 
             _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.
         }
@@ -116,7 +119,17 @@ impl Disassemble for Op {
                 writeln!(f, "\t{0:04x}  {1}", idx, value).unwrap();
                 offset
             },
-            Op::GET_LOCAL | Op::SET_LOCAL => {
+            Op::JumpIfFalse => {
+                let mut offset = offset;
+                write!(f, "{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self,).unwrap();
+                offset += 1; // We've read our opcode, next, get the jump offset
+                let jump = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
+                offset += 2;
+                writeln!(f, "\t{0:04x}", jump).unwrap();
+                
+                offset
+            }
+            Op::GetLocal | Op::SetLocal => {
                 write!(f, "{0:04x}  {1}  {2:?}",  offset, chunk.line_str(offset), self).unwrap();
                 // Lookup the slot and print its contents
                 let slot = chunk.code[offset + 1];

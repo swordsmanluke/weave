@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::fmt::{Error, Formatter};
+use std::fmt::{Error};
 use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;
 use crate::weave::vm::types::WeaveType;
@@ -23,7 +23,7 @@ impl Chunk {
     /// TODO: Helper for the dissassembler - this should probably move elsewhere
     pub fn line_str(&self, offset: usize) -> String {
         let (line_offset, line) = *self.lines.iter()
-            .find(|(l_offset, line)| *l_offset >= offset)
+            .find(|(l_offset, _line)| *l_offset >= offset)
             .unwrap_or(&(0,0));
 
         let is_newline = offset == line_offset;
@@ -32,7 +32,7 @@ impl Chunk {
 
     pub(crate) fn line_number_at(&self, offset: usize) -> usize {
         let (_line_offset, line) = *self.lines.iter()
-            .find(|(l_offset, line)| *l_offset >= offset)
+            .find(|(l_offset, _line)| *l_offset >= offset)
             .unwrap_or(&(0,0));
         line
     }
@@ -67,7 +67,7 @@ impl Chunk {
     }
 
     pub fn disassemble(&self, name: &str) -> Result<(), Error> {
-        write!(std::io::stdout(), "=== {0} ===\n", name);
+        write!(std::io::stdout(), "=== {0} ===\n", name).unwrap();
         let mut offset = 0;
         while offset < self.code.len() {
             offset = Op::at(self.code[offset]).disassemble(offset, self);

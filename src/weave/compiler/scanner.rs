@@ -30,10 +30,10 @@ impl CharStream {
         self.peek() == c
     }
 
-    pub fn next_matches(&self, c: char) -> bool {
-        println!("scanner: checking for {:?} - next is {}", c, self.peek_next());
-        self.peek_next() == c
-    }
+    // pub fn next_matches(&self, c: char) -> bool {
+    //     println!("scanner: checking for {:?} - next is {}", c, self.peek_next());
+    //     self.peek_next() == c
+    // }
 
     fn or_not(&self, optc: Option<&char>) -> char {
         match optc {

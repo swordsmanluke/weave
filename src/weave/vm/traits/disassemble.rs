@@ -1,4 +1,3 @@
-use std::fmt::Write;
 use crate::weave::Chunk;
 
 pub trait Disassemble {
