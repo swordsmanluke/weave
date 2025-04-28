@@ -137,6 +137,9 @@ impl VM {
             self.debug(&format!("EVAL({:?})", op));
             self.debug(&format!("  - {:?}", self.stack));
             match op {
+                Op::INVALID(_) => {
+                    return Err(VMError::InvalidChunk);
+                }
                 Op::RETURN => {
                     match self._peek() {
                         WeaveType::None => {}
@@ -253,6 +256,10 @@ impl VM {
                     if !self._peek().truthy() {
                         ip.jump(jmp_offset);
                     }
+                }
+                Op::Loop => {
+                    let jmp_offset = ip.next_u16();
+                    ip.jump_back(jmp_offset);
                 }
             }
         }
@@ -454,5 +461,20 @@ mod tests {
         let mut vm = VM::new(true);
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+    }
+    
+    #[test]
+    fn test_while_syntax() {
+        let code = "{
+            a = 1  
+            while a < 3 {
+                a = a + 1
+            }
+            a
+        }";
+        let mut vm = VM::new(true);
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(vm.last_value, WeaveType::from(3.0));
     }
 }

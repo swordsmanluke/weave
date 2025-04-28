@@ -41,8 +41,15 @@ impl IP {
         let lo = self.next() as i16;
         hi << 8 | lo
     }
+    
     pub fn jump(&mut self, jmp_offset: u16) {
         let jmp_offset = self.ip + jmp_offset as usize;
+        if self.debug_mode {  println!("Jumping to {:0x}", jmp_offset); }
+        self.ip = jmp_offset;
+    }
+
+    pub fn jump_back(&mut self, jmp_offset: u16) {
+        let jmp_offset = self.ip - jmp_offset as usize;
         if self.debug_mode {  println!("Jumping to {:0x}", jmp_offset); }
         self.ip = jmp_offset;
     }

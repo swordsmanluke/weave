@@ -57,13 +57,16 @@ impl ParseRule {
             TokenType::AndAnd => ParseRuleBuilder::p_and().infix(Compiler::log_and).rule,
             TokenType::OrOr => ParseRuleBuilder::p_and().infix(Compiler::log_or).rule,
             
+            // Flow control
+            TokenType::If => ParseRule::new(),
+            TokenType::Else => ParseRule::new(),
+            TokenType::While => ParseRule::new(),
+            
             // TODO
             TokenType::Pipe => ParseRule::new(),
             TokenType::Map => ParseRule::new(),
             TokenType::Reduce => ParseRule::new(),
             TokenType::Container => ParseRule::new(),
-            TokenType::If => ParseRule::new(),
-            TokenType::Else => ParseRule::new(),
             TokenType::FN => ParseRule::new(),
             TokenType::Return => ParseRule::new(),
             TokenType::Puts => ParseRule::new(),

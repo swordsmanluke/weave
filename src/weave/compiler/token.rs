@@ -94,7 +94,7 @@ pub enum TokenType {
     Identifier, String, Number, Container,
     // Keywords.
     //  - flow control
-    If, Else,
+    If, Else, While,
     True, False,
     //  - functions
     FN, Return,

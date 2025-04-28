@@ -1,5 +1,6 @@
 use std::io::Write;
 use crate::weave::Chunk;
+use crate::weave::Op::INVALID;
 use crate::weave::vm::traits::disassemble::Disassemble;
 
 #[derive(Debug, PartialEq)]
@@ -29,6 +30,7 @@ pub enum Op {
     DIV,
     
     // Control
+    Loop,
     Jump,
     JumpIfFalse,
     EXIT,
@@ -37,6 +39,9 @@ pub enum Op {
 
     // IO
     PRINT,
+    
+    // Error handling
+    INVALID(u8)
 
 }
 
@@ -65,6 +70,9 @@ impl Op {
             Op::EXIT => vec![19],
             Op::JumpIfFalse => vec![20],
             Op::Jump => vec![21],
+            Op::Loop => vec![22],
+            
+            Op::INVALID(byte) => vec![255],
         }
     }
 
@@ -93,8 +101,9 @@ impl Op {
             19 => Op::EXIT,
             20 => Op::JumpIfFalse,
             21 => Op::Jump,
+            22 => Op::Loop,
 
-            _ => panic!("Unknown opcode"), // Should never happen, but when it does - die.
+            _ => INVALID(byte), // Should never happen, but when it does - die.
         }
     }
 }
@@ -122,6 +131,17 @@ impl Disassemble for Op {
                 writeln!(f, "\t{0:04x}  {1}", idx, value).unwrap();
                 offset
             },
+            Op::Loop => {
+                let mut offset = offset;
+                write!(f, "{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self).unwrap();
+                offset += 1; // We've read our opcode, next, get the jump offset
+                let jump = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
+                offset += 2;
+                let new_pos = (offset as isize - jump as isize) as usize;
+                writeln!(f, "\t{0:04x}", new_pos).unwrap();
+
+                offset
+            }, 
             Op::Jump | Op::JumpIfFalse => {
                 let mut offset = offset;
                 write!(f, "{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self).unwrap();

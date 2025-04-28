@@ -264,6 +264,7 @@ impl Scanner {
             // Keywords
             "if" => TokenType::If,
             "else" => TokenType::Else,
+            "while" => TokenType::While,
             "true" => TokenType::True,
             "false" => TokenType::False,
             "fn" => TokenType::FN,

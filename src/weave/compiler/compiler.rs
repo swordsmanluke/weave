@@ -255,6 +255,8 @@ impl Compiler {
             self.puts_statement();
         } else if self.check(TokenType::If) {
             self.if_statement();
+        } else if self.check(TokenType::While) {
+            self.while_statement();
         } else if self.check(TokenType::LeftBrace) {
             self.begin_scope();
             self.block();
@@ -262,6 +264,20 @@ impl Compiler {
         } else {
             self.expression_statement();
         }
+    }
+    
+    fn while_statement(&mut self) {
+        let loop_start = self.chunk.code.len();
+        self.expression_statement(); // condition
+        let exit_jump = self.emit_jump(Op::JumpIfFalse);
+        self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
+        
+        self.consume(TokenType::LeftBrace, "Expected Block after condition");
+        self.block();
+        self.emit_loop(loop_start);
+
+        self.patch_jump(exit_jump);
+        self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
     }
 
     fn if_statement(&mut self) {
@@ -518,6 +534,13 @@ impl Compiler {
         let jump = self.current_chunk().code.len() - jmp_param - 2;
         self.current_chunk().code[jmp_param] = (jump >> 8) as u8;
         self.current_chunk().code[jmp_param + 1] = (jump & 0xFF) as u8;
+    }
+    
+    fn emit_loop(&mut self, loop_start: usize) {
+        let offset = self.current_chunk().code.len() - loop_start + 2;
+        let hi = (offset >> 8) as u8;
+        let lo = (offset & 0xFF) as u8;
+        self.emit_opcode(Op::Loop, &vec![hi, lo]);
     }
 }
 
