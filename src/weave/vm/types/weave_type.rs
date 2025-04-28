@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Not, Sub};
 use crate::weave::vm::types::weave_number::WeaveNumber;
 use crate::weave::vm::types::errors::OpResult;
+use crate::weave::vm::types::weave_fn::WeaveFn;
 use crate::weave::vm::types::weave_string::WeaveString;
 
 // Our types for Weave. Detailed type information can be found in the implementation of each type
@@ -12,6 +13,7 @@ pub enum WeaveType {
     Boolean(bool),
     Number(WeaveNumber),
     String(WeaveString),
+    Fn(WeaveFn),
 }
 
 impl WeaveType {
@@ -75,7 +77,8 @@ impl Display for WeaveType {
         match self {
             WeaveType::Number(n) => write!(f, "{}", n),
             WeaveType::Boolean(b) => write!(f, "{}", b),
-            WeaveType::String(s) => write!(f, "{}", s),  
+            WeaveType::String(s) => write!(f, "{}", s),
+            WeaveType::Fn(func) => write!(f, "{}", func),
             WeaveType::None => {write!(f, "")}
         }
     }

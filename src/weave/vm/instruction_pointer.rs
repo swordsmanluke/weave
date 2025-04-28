@@ -1,6 +1,6 @@
 pub(crate) struct IP {
     pub ip: usize,
-    code: Vec<u8>,
+    bytecode: Vec<u8>,
     debug_mode: bool
 }
 
@@ -9,21 +9,21 @@ pub(crate) struct IP {
 /// pointer, which should be more performant. Still, this actually runs code,
 /// so I can't complain.
 impl IP {
-    pub fn new(code: &Vec<u8>, debug_mode: bool) -> IP {
+    pub fn new(bytecode: &Vec<u8>, debug_mode: bool) -> IP {
         IP {
             ip: 0,
-            code: code.clone(),
+            bytecode: bytecode.clone(),
             debug_mode
         }
     }
     
     pub fn is_at_end(&self) -> bool {
-        self.ip >= self.code.len()
+        self.ip >= self.bytecode.len()
     }
 
     pub fn next(&mut self) -> u8 {
-        self.debug(&format!("IP ({:0x}) -> {1:0x}", self.ip, *self.code.get(self.ip).unwrap_or(&0)));
-        match self.code.get(self.ip) {
+        self.debug(&format!("IP ({:0x}) -> {1:0x}", self.ip, *self.bytecode.get(self.ip).unwrap_or(&0)));
+        match self.bytecode.get(self.ip) {
             Some(v) => { self.ip += 1; *v},
             None => 0
         }

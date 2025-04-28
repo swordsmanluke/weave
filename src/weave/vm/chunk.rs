@@ -4,7 +4,7 @@ use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;
 use crate::weave::vm::types::WeaveType;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Chunk {
     pub code: Vec<u8>,
     pub constants: Vec<WeaveType>, // May be replaceable with a vec

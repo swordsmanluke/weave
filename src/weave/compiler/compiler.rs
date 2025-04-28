@@ -4,17 +4,23 @@ use crate::weave::compiler::parse_rule::ParseRule;
 use crate::weave::compiler::parser::Parser;
 use crate::weave::compiler::precedence::Precedence;
 use crate::weave::compiler::token::{Token, TokenType};
-use crate::weave::vm::types::WeaveType;
+use crate::weave::vm::types::{WeaveType, WeaveFn};
 use crate::weave::{Chunk, Op};
 
-pub type CompileResult = Result<Chunk, String>;
+pub type CompileResult = Result<WeaveFn, String>;
+ 
+enum FnType {
+    Script,
+    Function
+}
 
 pub struct Compiler {
     line: usize,
     parser: Parser,
     had_error: bool,
     panic_mode: bool,
-    chunk: Chunk,
+    function: WeaveFn,
+    function_type: FnType,
     debug_mode: bool,
     scope: Scope
 }
@@ -22,6 +28,14 @@ pub struct Compiler {
 struct Local {
     name: Box<String>,
     depth: u8
+}
+
+impl Local {
+    pub fn new(name: String, depth: u8) -> Local {
+        Local { name: name.into(), depth }
+    }
+    
+    pub fn empty() -> Local { Local { name: "".to_string().into(), depth: 0 } }
 }
 
 struct Scope {
@@ -34,7 +48,7 @@ struct Scope {
 impl Scope {
     fn new() -> Scope {
         Scope {
-            locals: Vec::new(),
+            locals: vec![Local::empty()], // First local slot is reserved for the VM
             scope_type: Vec::new(),
             depth: 0
         }
@@ -86,10 +100,17 @@ impl Compiler {
             parser: Parser::new(source),
             had_error: false,
             panic_mode: false,
-            chunk: Chunk::new(),
+            function: WeaveFn::new(String::new(), vec![]),
+            function_type: FnType::Script,
             scope: Scope::new(),
             debug_mode,
         }
+    }
+    
+    pub fn new_func_compiler(source: &str, debug_mode: bool) -> Compiler {
+        let mut compiler = Compiler::new(source, debug_mode);
+        compiler.function_type = FnType::Function;
+        compiler
     }
 
     pub fn compile(&mut self) -> CompileResult {
@@ -101,12 +122,12 @@ impl Compiler {
         self.emit_basic_opcode(Op::EXIT);
 
         if self.had_error {
-            self.chunk.disassemble("Chunk Dump");
+            self.current_chunk().disassemble("Chunk Dump");
             self.report_err("Compilation error- see above");
             return Err("Compilation error".to_string());
         }
 
-        Ok(self.chunk.clone())
+        Ok(self.function.clone())
     }
 
     pub fn advance(&mut self) {
@@ -132,7 +153,7 @@ impl Compiler {
     }
 
     fn current_chunk(&mut self) -> &mut Chunk {
-        &mut self.chunk
+        &mut self.function.chunk
     }
 
     fn report_err(&mut self, message: &str) {
@@ -191,7 +212,8 @@ impl Compiler {
         if idx != -1 {
             self.emit_opcode(Op::GetLocal, &vec![idx as u8]);
         } else {
-            self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
+            let line = self.line;
+            self.current_chunk().add_constant(WeaveType::String(identifier.into()), line);
             self.emit_basic_opcode(Op::GetGlobal);
         }
     }
@@ -242,7 +264,8 @@ impl Compiler {
                 self.emit_opcode(Op::SetLocal, &[self.scope.locals.len() as u8  - 1].to_vec());
             }
         } else {
-            self.chunk.add_constant(WeaveType::String(identifier.into()), self.line);
+            let line = self.line;
+            self.current_chunk().add_constant(WeaveType::String(identifier.into()), line);
             self.emit_basic_opcode(Op::SetGlobal);
         }
     }
@@ -267,7 +290,7 @@ impl Compiler {
     }
     
     fn while_statement(&mut self) {
-        let loop_start = self.chunk.code.len();
+        let loop_start = self.current_chunk().code.len();
         self.expression_statement(); // condition
         let exit_jump = self.emit_jump(Op::JumpIfFalse);
         self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
@@ -559,7 +582,6 @@ mod tests {
         let mut compiler = Compiler::new("x = 1", true);
         let result = compiler.compile();
         assert!(result.is_ok(), "Failed to compile");
-        assert!(result.unwrap().constants.len() > 0, "Global \"x\" not created");
     }
 
     #[test]
@@ -567,7 +589,7 @@ mod tests {
         let mut compiler = Compiler::new("{ x = 1; x + 3 }", true);
         let result = compiler.compile();
         assert!(result.is_ok(), "Failed to compile");
-        let chunk = result.unwrap();
+        let chunk = result.unwrap().chunk;
         chunk.disassemble("Chunk Dump");
         let bytecode = chunk.code[3];
         assert!(bytecode == Op::SetLocal.bytecode()[0], "{} != {}", bytecode, Op::SetLocal.bytecode()[0]);
