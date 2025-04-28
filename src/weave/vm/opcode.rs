@@ -1,4 +1,3 @@
-use std::io::Write;
 use crate::weave::Chunk;
 use crate::weave::Op::INVALID;
 use crate::weave::vm::traits::disassemble::Disassemble;
@@ -116,10 +115,9 @@ impl From<u8> for Op {
 
 impl Disassemble for Op {
     fn disassemble(&self, offset: usize, chunk: &Chunk) -> usize {
-        let mut f = std::io::stdout();
         match self {
             Op::CONSTANT => {
-                write!(f, "{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset)).unwrap();
+                print!("{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset));
                 let mut offset = offset + 1; // Skip the opcode, already consumed
 
                 // Read two bytes for the index
@@ -128,40 +126,40 @@ impl Disassemble for Op {
 
                 // Now retrieve the value from the constants table and print it
                 let value = &chunk.constants[idx];
-                writeln!(f, "\t{0:04x}  {1}", idx, value).unwrap();
+                println!("\t{0:04x}  {1}", idx, value);
                 offset
             },
             Op::Loop => {
                 let mut offset = offset;
-                write!(f, "{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self).unwrap();
+                print!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
                 offset += 1; // We've read our opcode, next, get the jump offset
                 let jump = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
                 offset += 2;
                 let new_pos = (offset as isize - jump as isize) as usize;
-                writeln!(f, "\t{0:04x}", new_pos).unwrap();
+                println!("\t\t{0:04x}", new_pos);
 
                 offset
             }, 
             Op::Jump | Op::JumpIfFalse => {
                 let mut offset = offset;
-                write!(f, "{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self).unwrap();
+                print!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
                 offset += 1; // We've read our opcode, next, get the jump offset
                 let jump = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
                 offset += 2;
-                writeln!(f, "\t{0:04x}", offset + jump).unwrap();
+                println!("\t{0:04x}", offset + jump);
                 
                 offset
             }
             Op::GetLocal | Op::SetLocal => {
-                write!(f, "{0:04x}  {1}  {2:?}",  offset, chunk.line_str(offset), self).unwrap();
+                print!("{0:04x}  {1}  {2:?}",  offset, chunk.line_str(offset), self);
                 // Lookup the slot and print its contents
                 let slot = chunk.code[offset + 1];
-                let value = &chunk.constants[slot as usize];
-                writeln!(f, "\t{0:04x}  {1}", slot, value).unwrap();
+                let value = &chunk.constants.get(slot as usize);
+                println!("\t{0:04x}  {1:?}", slot, value);
                 offset + 2
             }
             op => {
-                writeln!(f, "{:04x}  {}  {:?}", offset, chunk.line_str(offset), op).unwrap();
+                println!("{:04x}  {}  {:?}", offset, chunk.line_str(offset), op);
                 offset + 1
             }
         }

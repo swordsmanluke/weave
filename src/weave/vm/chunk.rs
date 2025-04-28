@@ -67,7 +67,7 @@ impl Chunk {
     }
 
     pub fn disassemble(&self, name: &str) -> Result<(), Error> {
-        write!(std::io::stdout(), "=== {0} ===\n", name).unwrap();
+        println!("=== {0} ===\n", name);
         let mut offset = 0;
         while offset < self.code.len() {
             offset = Op::at(self.code[offset]).disassemble(offset, self);

@@ -28,14 +28,14 @@ struct CallStack  {
 }
 
 struct CallFrame {
-    func: WeaveFn,
+    pub func: WeaveFn,
     ip: IP,
     slot: usize
 }
 
 impl CallFrame {
     pub fn new(func: WeaveFn, slot: usize) -> CallFrame {
-        let ip = IP::new(&func.chunk.code, false);
+        let ip = IP::new(&func.chunk.code, true);
         CallFrame { func, ip, slot}
     }
 
@@ -52,6 +52,14 @@ impl CallStack {
     pub fn push(&mut self, func: &WeaveFn, slot: usize) {
         let frame = CallFrame::new(func.clone(), slot);
         self.frames.push(frame);
+    }
+    
+    pub fn disassemble(&self, name: &str) {
+        self.frames.last().unwrap().func.chunk.disassemble(name).unwrap();
+    }
+    
+    pub fn constants(&self) -> &Vec<WeaveType> {
+        &self.frames.last().unwrap().func.chunk.constants
     }
 
     pub fn next_op(&mut self) -> Op {
@@ -162,7 +170,7 @@ impl VM {
 
     fn _push(&mut self, value: OpResult) -> VMResult {
         // TODO: This is the where "malloc" would be in C
-        self.debug(&format!("Pushing: {:?} to Stack", value));
+        self.debug(&format!("PUSH: {:?}", value));
         // If we encountered an error in performing an action, we may need to raise an error.
         // We can handle most of that here to make everyone else' lives easier - just return
         // whatever val/error you have and when we try to push it to the stack, determine if
@@ -182,6 +190,7 @@ impl VM {
     fn _pop(&mut self) -> WeaveType {
         // TODO: This is _nearly_ where the "free" would be in C - basically as soon as the
         //       value returned here is dropped, it should be freed
+        self.debug(&format!("POP: {:?}", self._peek()));
         self.stack.pop().unwrap_or(WeaveType::None)
     }
 
@@ -199,20 +208,13 @@ impl VM {
         if self.call_stack.is_empty() { return Err(VMError::InvalidChunk); }
 
         self.debug("Executing...");
+        if self.debug_mode { self.call_stack.disassemble("main"); }
 
         while !self.call_stack.is_at_end() {
             // until ip offset > chunk size
             let op = self.call_stack.next_op();
 
-            if self.debug_mode {
-                // op.disassemble(ip.idx(-1), self.chunk.as_ref().unwrap());
-                // TODO: tabular format
-                //    offset, line number, opcode, Optional var offset, optional var value, list of stack vars
-                println!("  - {:?}", self.stack);
-            }
-
             self.debug(&format!("EVAL({:?})", op));
-            self.debug(&format!("  - {:?}", self.stack));
             match op {
                 Op::INVALID(_) => {
                     return Err(VMError::InvalidChunk);
@@ -228,6 +230,7 @@ impl VM {
                 Op::POP => { self._pop(); },
                 Op::CONSTANT => {
                     let idx = self.call_stack.next_u16() as usize;
+                    self.debug(&format!("Reading constant @ {:0x}", idx));
                     let v = Ok(self._read_constant(idx).clone());
                     self._push(v)?;
                 }
@@ -331,6 +334,9 @@ impl VM {
                     self.call_stack.jump_back(jmp_offset);
                 }
             }
+
+            self.debug(&format!("  - {:?}", self.stack));
+            self.debug(&format!("  - {:?}", self.call_stack.constants()));
         }
 
         Ok(self.last_value.clone())

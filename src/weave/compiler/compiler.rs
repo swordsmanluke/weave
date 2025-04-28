@@ -1,4 +1,5 @@
 use std::cmp::PartialEq;
+use std::fmt;
 use std::io::{stdout, Write};
 use crate::weave::compiler::parse_rule::ParseRule;
 use crate::weave::compiler::parser::Parser;
@@ -290,7 +291,7 @@ impl Compiler {
     }
     
     fn while_statement(&mut self) {
-        let loop_start = self.current_chunk().code.len();
+        let loop_start = self.current_chunk().code.len() - 1;
         self.expression_statement(); // condition
         let exit_jump = self.emit_jump(Op::JumpIfFalse);
         self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
