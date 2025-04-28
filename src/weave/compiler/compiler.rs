@@ -266,7 +266,7 @@ impl Compiler {
 
     fn if_statement(&mut self) {
         self.expression_statement();  // Condition
-        
+
         // Set up the jump to evaluate the condition
         let then_jump = self.emit_jump(Op::JumpIfFalse);
         self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
@@ -274,7 +274,7 @@ impl Compiler {
         // Compile the 'then' block
         self.consume(TokenType::LeftBrace, "Expected Block after condition");
         self.block();
-        
+
         // Skip the 'else' block when the condition is true
         let else_jump = self.emit_jump(Op::Jump);
         self.patch_jump(then_jump);
@@ -284,7 +284,7 @@ impl Compiler {
         if self.check(TokenType::Else) {
             // Compile the 'else' block
             self.consume(TokenType::LeftBrace, "Expected Block after 'else'");
-            self.block(); 
+            self.block();
         }
         self.patch_jump(else_jump);
     }
@@ -411,6 +411,22 @@ impl Compiler {
             TokenType::False => self.emit_basic_opcode(Op::FALSE),
             _ => unreachable!("Not a literal"),
         }
+    }
+    
+    pub fn log_and(&mut self) {
+        let end_jump = self.emit_jump(Op::JumpIfFalse);
+        self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack()
+        self.parse_precedence(Precedence::AND);
+        self.patch_jump(end_jump);
+    }
+    
+    pub fn log_or(&mut self) {
+        let else_jump = self.emit_jump(Op::JumpIfFalse);
+        let end_jump = self.emit_jump(Op::Jump);
+        self.patch_jump(else_jump);
+        self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack()
+        self.parse_precedence(Precedence::OR);
+        self.patch_jump(end_jump);
     }
 
     pub(crate) fn binary(&mut self) {

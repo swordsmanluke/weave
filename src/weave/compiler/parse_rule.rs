@@ -53,9 +53,11 @@ impl ParseRule {
             TokenType::String => ParseRuleBuilder::p_none().prefix(Compiler::string).rule,
             TokenType::Identifier => ParseRuleBuilder::p_none().prefix(Compiler::variable).rule,
 
+            // Logical operators
+            TokenType::AndAnd => ParseRuleBuilder::p_and().infix(Compiler::log_and).rule,
+            TokenType::OrOr => ParseRuleBuilder::p_and().infix(Compiler::log_or).rule,
+            
             // TODO
-            TokenType::AndAnd => ParseRule::new(),
-            TokenType::OrOr => ParseRule::new(),
             TokenType::Pipe => ParseRule::new(),
             TokenType::Map => ParseRule::new(),
             TokenType::Reduce => ParseRule::new(),

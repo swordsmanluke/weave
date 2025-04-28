@@ -5,6 +5,7 @@ use crate::weave::vm::types::errors::OpResult;
 use crate::weave::{Chunk, Op};
 use std::collections::HashMap;
 use std::io::{Write, stdout};
+use crate::weave::color::green;
 
 pub struct VM {
     chunk: Option<Chunk>,
@@ -241,7 +242,7 @@ impl VM {
                     self._push(Ok(WeaveType::Boolean(a == b)))?;
                 }
                 Op::PRINT => {
-                    println!("{}", self._pop());
+                    println!("{}", green(&format!("{}", self._pop())));
                 }
                 Op::Jump => {
                     let jmp_target = ip.next_u16();
@@ -398,7 +399,7 @@ mod tests {
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.last_value, WeaveType::from(4.0));
     }
-    
+
     #[test]
     fn test_if_true_condition() {
         let mut vm = VM::new(true);
@@ -422,15 +423,15 @@ mod tests {
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.last_value, WeaveType::from(1.0));
     }
-    
+
     #[test]
     fn test_if_else_condition() {
         let code = "{
         a = 1;
-        if false { 
-            a = a + 1 
-        } else { 
-            a = a + 2 
+        if false {
+            a = a + 1
+        } else {
+            a = a + 2
         }
         a
         }";
@@ -439,13 +440,13 @@ mod tests {
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.last_value, WeaveType::from(3.0));
     }
-    
-    
+
+
     #[test]
     fn test_if_syntax() {
         let code = "
-            if false { 
-                puts 1 
+            if false {
+                puts 1
             } else {
                 puts 2
             }
