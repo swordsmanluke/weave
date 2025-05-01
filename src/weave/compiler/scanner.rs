@@ -1,52 +1,10 @@
+use std::rc::Rc;
 use crate::weave::compiler::token::{Token, TokenType};
 
-struct CharStream {
-    chars: Vec<char>,
-    idx: usize,
-}
-
-impl CharStream {
-    fn new(string: &String) -> CharStream {
-        let idx = 0;
-        let chars = string.chars().collect::<Vec<char>>();
-        CharStream { chars, idx }
-    }
-
-    pub fn peek(&self) -> char {
-        self.or_not(self.chars.get(self.idx))
-    }
-    
-    pub fn peek_next(&self) -> char { 
-        self.or_not(self.chars.get(self.idx + 1))
-    }
-
-    pub fn advance(&mut self) -> char {
-        let c = self.peek();
-        self.idx += 1;
-        c
-    }
-
-    pub fn matches(&self, c: char) -> bool {
-        self.peek() == c
-    }
-
-    // pub fn next_matches(&self, c: char) -> bool {
-    //     println!("scanner: checking for {:?} - next is {}", c, self.peek_next());
-    //     self.peek_next() == c
-    // }
-
-    fn or_not(&self, optc: Option<&char>) -> char {
-        match optc {
-            Some(c) => *c,
-            None => '\0',
-        }
-    }
-}
-
+#[derive(Debug, Clone)]
 pub struct Scanner {
     debug_mode: bool,
-    code: String,
-    char_iter: CharStream,
+    code: Rc<String>,
     start: usize,
     current: usize,
     line: usize,
@@ -54,21 +12,32 @@ pub struct Scanner {
 
 impl Scanner {
     pub fn new(code: &str, debug_mode: bool) -> Scanner {
-        let code = code.to_string();
-        let code2 = code.clone();
+        let code = Rc::new(code.to_string());
         Scanner {
             debug_mode,
-            code,
-            char_iter: CharStream::new(&code2),
+            code: code.clone(),
             start: 0,
             current: 0,
             line: 1,
         }
     }
 
-    fn advance(&mut self) -> char {
+    pub fn peek(&self) -> char {
+        self.code.chars().nth(self.current).unwrap_or('\0')
+    }
+
+    pub fn peek_next(&self) -> char {
+        self.code.chars().nth(self.current + 1).unwrap_or('\0')
+    }
+
+    pub fn advance(&mut self) -> char {
+        let c = self.peek();
         self.current += 1;
-        self.char_iter.advance()
+        c
+    }
+
+    pub fn matches(&self, c: char) -> bool {
+        self.peek() == c
     }
 
     fn cur_lexeme(&self) -> &str {
@@ -95,7 +64,7 @@ impl Scanner {
 
     fn skip_whitespace(&mut self) {
         loop {
-            match self.char_iter.peek() {
+            match self.peek() {
                 ' ' | '\t' | '\r' => {
                     self.advance();
                 }
@@ -105,7 +74,7 @@ impl Scanner {
                     self.advance();
                 }
                 '#' => {
-                    while !self.is_at_end() && self.char_iter.peek() != '\n' {
+                    while !self.is_at_end() && self.peek() != '\n' {
                         self.advance();
                     }
                 }
@@ -203,15 +172,15 @@ impl Scanner {
     }
 
     fn consume(&mut self, c: char) -> bool {
-        if self.char_iter.matches(c) { self.advance(); true }
+        if self.matches(c) { self.advance(); true }
         else { false }
     }
 
     fn scan_string(&mut self) -> Token {
         if self.debug_mode { println!("scanning string"); }
         // Down the road, we'll want to support interpolation, but for right now, simple string parsing is good enough
-        while !self.is_at_end() && !self.char_iter.matches('"') {
-            if self.char_iter.matches('\n') { self.line += 1; }
+        while !self.is_at_end() && !self.matches('"') {
+            if self.matches('\n') { self.line += 1; }
             self.advance();
         }
         if self.is_at_end() {
@@ -220,17 +189,19 @@ impl Scanner {
         self.advance(); // consume the "
 
         // +1 and -1 to account for the quote markers
-        self.text_token(TokenType::String, &self.code[self.start+1..self.current-1])
+        let str_start = self.start + 1;
+        let str_end = (self.current as isize - 1) as usize;
+        self.text_token(TokenType::String, &self.code[str_start..str_end])
     }
 
     fn scan_number(&mut self) -> Token {
-        while self.char_iter.peek().is_digit(10) {
+        while self.peek().is_digit(10) {
             self.advance();
         }
 
-        if self.char_iter.matches('.') && self.char_iter.peek_next().is_digit(10) {
+        if self.matches('.') && self.peek_next().is_digit(10) {
             self.advance();
-            while self.char_iter.peek().is_digit(10) {
+            while self.peek().is_digit(10) {
                 self.advance();
             }
         }
@@ -251,7 +222,7 @@ impl Scanner {
             c.is_alphanumeric() || c.is_digit(10) || c == '_'
         }
 
-        while is_identifier_part(self.char_iter.peek()) {
+        while is_identifier_part(self.peek()) {
             self.advance();
         }
 

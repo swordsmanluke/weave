@@ -549,4 +549,18 @@ mod tests {
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(vm.last_value, WeaveType::from(3.0));
     }
+    
+    #[test]
+    fn test_fn_definition() {
+        let code = "
+            fn add(a, b) {
+                a + b
+            }
+            add(1, 2)
+        ";
+        let mut vm = VM::new(true);
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(3.0));
+    }
 }

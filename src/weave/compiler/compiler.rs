@@ -1,10 +1,10 @@
 use std::cmp::PartialEq;
-use std::fmt;
 use std::io::{stdout, Write};
 use crate::weave::compiler::parse_rule::ParseRule;
 use crate::weave::compiler::parser::Parser;
 use crate::weave::compiler::precedence::Precedence;
 use crate::weave::compiler::token::{Token, TokenType};
+use crate::weave::compiler::internal::{Local, Scope};
 use crate::weave::vm::types::{WeaveType, WeaveFn};
 use crate::weave::{Chunk, Op};
 
@@ -26,62 +26,9 @@ pub struct Compiler {
     scope: Scope
 }
 
-struct Local {
-    name: Box<String>,
-    depth: u8
-}
-
-impl Local {
-    pub fn new(name: String, depth: u8) -> Local {
-        Local { name: name.into(), depth }
-    }
-    
-    pub fn empty() -> Local { Local { name: "".to_string().into(), depth: 0 } }
-}
-
-struct Scope {
-    locals: Vec<Local>,
-    scope_type: Vec<ScopeType>,
-    depth: u8
-}
-
-
-impl Scope {
-    fn new() -> Scope {
-        Scope {
-            locals: vec![Local::empty()], // First local slot is reserved for the VM
-            scope_type: Vec::new(),
-            depth: 0
-        }
-    }
-
-    fn incr(&mut self, scope_type: ScopeType) {
-        self.scope_type.push(scope_type);
-        self.depth += 1;
-    }
-
-    fn decr(&mut self) {
-        self.scope_type.pop();
-        self.depth -= 1;
-    }
-
-    pub fn enter_if_scope(&mut self) { self.incr(ScopeType::If); }
-    pub fn enter_fn_scope(&mut self) { self.incr(ScopeType::Fn); }
-    pub fn enter_gen_scope(&mut self) { self.incr(ScopeType::General); }
-    pub fn exit_scope(&mut self) { self.decr(); }
-    pub fn should_shadow(&self) -> bool { self.scope_type.last() == Some(&ScopeType::Fn) }
-}
-
 pub enum AssignMode {
     Yes,
     No
-}
-
-#[derive(PartialEq)]
-enum ScopeType {
-    If,
-    Fn,
-    General,
 }
 
 impl PartialEq for AssignMode {
@@ -230,27 +177,7 @@ impl Compiler {
     }
 
     fn resolve_local(&self, identifier: &str) -> isize {
-        println!("Looking for local var: {}", identifier);
-        println!("Locals: {}", self.scope.locals.iter().map(|l| l.name.as_str()).collect::<Vec<&str>>().join(", "));
-        if self.scope.locals.is_empty() {
-            println!("No local variables");
-            return -1;
-        }
-        
-        for (i, l) in self.scope.locals.iter().enumerate().rev() {
-            if l.name.as_str() == identifier {
-                print!("Found local variable {}", l.name);
-                // Found the variable, but we can only assign to variables in our _immediate_ scope
-                if self.scope.should_shadow() {
-                    println!("....but we're shadowing, so create a new var!");
-                    return -1;
-                }
-                println!("... and we're not shadowing, so we can use it!");
-                return i as isize; 
-            }
-        }
-        
-        return -1;
+        self.scope.resolve_local(identifier)
     }
 
     fn set_named_variable(&mut self, identifier: String) {
@@ -259,16 +186,19 @@ impl Compiler {
             if idx != -1 {
                 self.emit_opcode(Op::SetLocal, &[idx as u8].to_vec());
             } else {
-                // Create new variable
-                let local = Local { name: identifier.into(), depth: self.scope.depth };
-                self.scope.locals.push(local);
-                self.emit_opcode(Op::SetLocal, &[self.scope.locals.len() as u8  - 1].to_vec());
+                let local_id = self.add_local(identifier);
+                self.emit_opcode(Op::SetLocal, &[local_id as u8].to_vec());
             }
         } else {
             let line = self.line;
             self.current_chunk().add_constant(WeaveType::String(identifier.into()), line);
             self.emit_basic_opcode(Op::SetGlobal);
         }
+    }
+
+    fn add_local(&mut self, identifier: String) -> usize {
+        // Create new variable
+        self.scope.declare_local(identifier)
     }
 
     pub fn statement(&mut self) {
@@ -279,6 +209,8 @@ impl Compiler {
             self.puts_statement();
         } else if self.check(TokenType::If) {
             self.if_statement();
+        } else if self.check(TokenType::FN) {
+            self.function_statement();
         } else if self.check(TokenType::While) {
             self.while_statement();
         } else if self.check(TokenType::LeftBrace) {
@@ -289,13 +221,26 @@ impl Compiler {
             self.expression_statement();
         }
     }
-    
+
+    fn function_statement(&mut self) {
+        self.consume(TokenType::Identifier, "Expected function name");
+        let fn_name = self.parser.previous();
+        self.add_local(fn_name.lexeme.lexeme().to_string());
+        
+        let func = WeaveFn::new(fn_name.lexeme.lexeme().to_string(), vec![]);
+        
+        // TODO: parse function parms and code 
+        // TODO: generate new chunk, 
+        // TODO: bind it to the function object
+
+    }
+
     fn while_statement(&mut self) {
         let loop_start = self.current_chunk().code.len() - 1;
         self.expression_statement(); // condition
         let exit_jump = self.emit_jump(Op::JumpIfFalse);
         self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
-        
+
         self.consume(TokenType::LeftBrace, "Expected Block after condition");
         self.block();
         self.emit_loop(loop_start);
@@ -362,12 +307,12 @@ impl Compiler {
         if self.debug_mode { println!("Exit Scope {}", self.scope.depth); }
         self.scope.exit_scope();
         
-        self.emit_basic_opcode(Op::RETURN);  // Set the last value of the stack for returning to reference of scope 
-
-        while !self.scope.locals.is_empty() && self.scope.locals.last().unwrap().depth > self.scope.depth {
+        self.emit_basic_opcode(Op::RETURN);  // Set the last value of the stack for returning to reference of scope
+        
+        for _ in 0..self.scope.locals_at(self.scope.depth) {
             self.emit_basic_opcode(Op::POP);
-            self.scope.locals.pop();
         }
+        self.scope.pop_scope();
     }
 
     fn block(&mut self) {
