@@ -1,6 +1,7 @@
 
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Not, Sub};
+use std::rc::Rc;
 use crate::weave::vm::types::weave_number::WeaveNumber;
 use crate::weave::vm::types::errors::OpResult;
 use crate::weave::vm::types::weave_fn::WeaveFn;
@@ -13,7 +14,7 @@ pub enum WeaveType {
     Boolean(bool),
     Number(WeaveNumber),
     String(WeaveString),
-    Fn(WeaveFn),
+    Fn(Rc<WeaveFn>),
 }
 
 impl WeaveType {

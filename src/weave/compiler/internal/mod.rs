@@ -1,5 +1,5 @@
 mod scope;
 
-pub(crate) use weave::compiler::internal::scope::{ Scope, Local };
+pub(crate) use weave::compiler::internal::scope::Scope;
 
 use crate::weave; 

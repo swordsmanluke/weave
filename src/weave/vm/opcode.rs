@@ -32,7 +32,7 @@ pub enum Op {
     Loop,
     Jump,
     JumpIfFalse,
-    EXIT,
+    Call,
     RETURN,
     POP,
 
@@ -66,10 +66,10 @@ impl Op {
             Op::GetGlobal => vec![16],
             Op::SetLocal => vec![17],
             Op::GetLocal => vec![18],
-            Op::EXIT => vec![19],
             Op::JumpIfFalse => vec![20],
             Op::Jump => vec![21],
             Op::Loop => vec![22],
+            Op::Call => vec![23],
             
             Op::INVALID(byte) => vec![255],
         }
@@ -97,10 +97,10 @@ impl Op {
             16 => Op::GetGlobal,
             17 => Op::SetLocal,
             18 => Op::GetLocal,
-            19 => Op::EXIT,
             20 => Op::JumpIfFalse,
             21 => Op::Jump,
             22 => Op::Loop,
+            23 => Op::Call,
 
             _ => INVALID(byte), // Should never happen, but when it does - die.
         }
@@ -129,6 +129,15 @@ impl Disassemble for Op {
                 println!("\t{0:04x}  {1}", idx, value);
                 offset
             },
+            Op::Call => {
+                let mut offset = offset;
+                print!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
+                offset += 1; // We've read our opcode, next, get the jump offset
+                let slot = (offset as isize - chunk.code[offset] as isize) as usize;
+                offset += 1;
+                println!("\t{0:04x}", slot);
+                offset
+            }
             Op::Loop => {
                 let mut offset = offset;
                 print!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);

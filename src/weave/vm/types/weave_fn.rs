@@ -26,6 +26,10 @@ impl WeaveFn {
         let chunk = Chunk::new();
         WeaveFn { name, chunk, params }
     }
+    
+    pub fn arity(&self) -> usize {
+        self.params.len()
+    }
 }
 
 impl Display for WeaveFn {

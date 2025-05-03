@@ -1,6 +1,7 @@
 use crate::weave::compiler::scanner::Scanner;
 use crate::weave::compiler::token::{Token, TokenType};
 
+#[derive(Clone)]
 pub(crate) struct Parser {
     scanner: Scanner,
     tokens: Vec<Token>,
@@ -9,7 +10,7 @@ pub(crate) struct Parser {
 impl  Parser {
     pub fn new(code: &str) -> Parser {
         Parser {
-            scanner: Scanner::new(code, true),
+            scanner: Scanner::new(code, false),
             tokens: Vec::new(),
         }
     }

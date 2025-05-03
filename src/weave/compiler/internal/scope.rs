@@ -1,17 +1,17 @@
-use crate::weave::Op;
-
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 enum ScopeType {
     If,
     Fn,
     General,
 }
 
+#[derive(Clone)]
 pub(crate) struct Local {
     name: Box<String>,
     depth: u8
 }
 
+#[derive(Clone)]
 pub(crate) struct Scope {
     locals: Vec<Local>,
     scope_type: Vec<ScopeType>,

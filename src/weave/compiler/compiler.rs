@@ -4,7 +4,7 @@ use crate::weave::compiler::parse_rule::ParseRule;
 use crate::weave::compiler::parser::Parser;
 use crate::weave::compiler::precedence::Precedence;
 use crate::weave::compiler::token::{Token, TokenType};
-use crate::weave::compiler::internal::{Local, Scope};
+use crate::weave::compiler::internal::Scope;
 use crate::weave::vm::types::{WeaveType, WeaveFn};
 use crate::weave::{Chunk, Op};
 
@@ -55,10 +55,17 @@ impl Compiler {
         }
     }
     
-    pub fn new_func_compiler(source: &str, debug_mode: bool) -> Compiler {
-        let mut compiler = Compiler::new(source, debug_mode);
-        compiler.function_type = FnType::Function;
-        compiler
+    pub fn new_func_compiler(&mut self, name: String) -> Compiler {
+        Compiler{
+            line: self.line,
+            parser: self.parser.clone(),
+            had_error: false,
+            panic_mode: false,
+            function: WeaveFn::new(name, vec![]),
+            function_type: FnType::Function,
+            scope: self.scope.clone(),
+            debug_mode: self.debug_mode
+        }
     }
 
     pub fn compile(&mut self) -> CompileResult {
@@ -67,7 +74,7 @@ impl Compiler {
             self.declaration();
         }
         self.consume(TokenType::EOF, "Expected end of file");
-        self.emit_basic_opcode(Op::EXIT);
+        self.emit_basic_opcode(Op::RETURN);
 
         if self.had_error {
             self.current_chunk().disassemble("Chunk Dump");
@@ -158,9 +165,11 @@ impl Compiler {
         let identifier = self.parser.previous().lexeme.lexeme().to_string();
         let idx = self.resolve_local(identifier.as_str());
         if idx != -1 {
+            if self.debug_mode { println!("Local variable found: {}@{}", identifier, idx); }
             self.emit_opcode(Op::GetLocal, &vec![idx as u8]);
         } else {
             let line = self.line;
+            if self.debug_mode { println!("Trying global variable: {}", identifier); }
             self.current_chunk().add_constant(WeaveType::String(identifier.into()), line);
             self.emit_basic_opcode(Op::GetGlobal);
         }
@@ -207,6 +216,8 @@ impl Compiler {
 
         if self.check(TokenType::Puts) {
             self.puts_statement();
+        } else if self.check(TokenType::Return) {
+            self.return_statement();
         } else if self.check(TokenType::If) {
             self.if_statement();
         } else if self.check(TokenType::FN) {
@@ -222,17 +233,80 @@ impl Compiler {
         }
     }
 
+    fn return_statement(&mut self) {
+        match self.function_type{
+            FnType::Script => self.report_err("Can't return from script"),
+            FnType::Function => {
+                if self.check(TokenType::Semicolon) {
+                    self.emit_basic_opcode(Op::RETURN);
+                } else {
+                    self.expression();
+                    self.emit_basic_opcode(Op::RETURN);
+                }
+            }
+        }
+    }
+
     fn function_statement(&mut self) {
+        if self.debug_mode { println!("compiling function"); }
         self.consume(TokenType::Identifier, "Expected function name");
         let fn_name = self.parser.previous();
         self.add_local(fn_name.lexeme.lexeme().to_string());
         
-        let func = WeaveFn::new(fn_name.lexeme.lexeme().to_string(), vec![]);
-        
-        // TODO: parse function parms and code 
-        // TODO: generate new chunk, 
-        // TODO: bind it to the function object
+        let mut func_compiler = self.new_func_compiler(fn_name.lexeme.lexeme().to_string());
+        func_compiler.function(); // compile function
 
+        self.parser = func_compiler.parser;  // leap forward to the end of the function
+
+        let line = self.line;
+        let global = self.current_chunk().add_constant(WeaveType::Fn(func_compiler.function.into()), line);
+        if self.debug_mode {
+            println!("function {} compiled as global {}", fn_name.lexeme.lexeme(), global);
+            println!("Globals: {:?}", self.current_chunk().constants);
+        }
+    }
+
+    fn function(&mut self) {
+        if self.debug_mode { println!("compiling {}", self.function.name); }
+        self.begin_scope();
+        self.consume(TokenType::LeftParen, "Expected '(' after function name");
+        self.function_params();
+        self.consume(TokenType::RightParen, "Expected ')' after function params");
+
+        self.consume(TokenType::LeftBrace, "Expected '{' before function body");
+        self.block();
+        if self.debug_mode { 
+            println!("function {} compiled", self.function.name);
+            self.function.chunk.disassemble(self.function.name.as_str());
+        }
+    }
+
+    fn function_params(&mut self) {
+        if !self.parser.cur_is(TokenType::RightParen) {
+            loop {
+                self.consume(TokenType::Identifier, "Expected parameter name");
+                self.add_local(self.parser.previous().lexeme.lexeme().to_string());
+                if !self.check(TokenType::Comma) { break; }
+            }
+        }
+    }
+
+    pub fn fn_call(&mut self) {
+        let arg_count = self.arg_count();
+        self.emit_opcode(Op::Call, &[arg_count].to_vec());
+    }
+
+    fn arg_count(&mut self) -> u8 {
+        let mut arg_count = 0;
+        if !self.parser.cur_is(TokenType::RightParen) {
+            loop {
+                self.expression();
+                arg_count += 1;
+                if !self.check(TokenType::Comma) { break; }
+            }
+        }
+        self.consume(TokenType::RightParen, "Expected ')' after arguments");
+        arg_count
     }
 
     fn while_statement(&mut self) {
@@ -307,7 +381,7 @@ impl Compiler {
         if self.debug_mode { println!("Exit Scope {}", self.scope.depth); }
         self.scope.exit_scope();
         
-        self.emit_basic_opcode(Op::RETURN);  // Set the last value of the stack for returning to reference of scope
+        self.emit_basic_opcode(Op::RETURN);  // Implicit return when exiting a scope
         
         for _ in 0..self.scope.locals_at(self.scope.depth) {
             self.emit_basic_opcode(Op::POP);

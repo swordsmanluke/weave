@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::fmt::{Error};
 use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;

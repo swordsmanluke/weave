@@ -21,7 +21,6 @@ impl ParseRule {
     pub fn for_token(token_type: TokenType) -> ParseRule {
         match token_type {
             // No precedence
-            TokenType::LeftParen => ParseRuleBuilder::p_none().prefix(Compiler::grouping).rule,
             TokenType::RightParen => ParseRule::new(),
             TokenType::LeftBrace => ParseRule::new(),
             TokenType::RightBrace => ParseRule::new(),
@@ -30,6 +29,8 @@ impl ParseRule {
             TokenType::Equal => ParseRule::new(),
             TokenType::Comma => ParseRule::new(),
             TokenType::Semicolon => ParseRule::new(),
+            
+            // Low precedence
             TokenType::Bang => ParseRuleBuilder::p_none().prefix(Compiler::unary).rule,
             TokenType::NEqual => ParseRuleBuilder::p_equality().infix(Compiler::binary).rule,
             TokenType::EqEqual => ParseRuleBuilder::p_equality().infix(Compiler::binary).rule,
@@ -37,6 +38,8 @@ impl ParseRule {
             TokenType::GEqual => ParseRuleBuilder::p_comparison().infix(Compiler::binary).rule,
             TokenType::Less => ParseRuleBuilder::p_comparison().infix(Compiler::binary).rule,
             TokenType::LEqual => ParseRuleBuilder::p_comparison().infix(Compiler::binary).rule,
+
+            TokenType::LeftParen => ParseRuleBuilder::p_call().prefix(Compiler::grouping).infix(Compiler::fn_call).rule,
 
             // Term
             TokenType::Minus => ParseRuleBuilder::p_term().prefix(Compiler::unary).infix(Compiler::binary).rule,
