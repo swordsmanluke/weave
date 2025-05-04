@@ -1,6 +1,6 @@
 use crate::weave::compiler::Compiler;
 use crate::weave::vm::instruction_pointer::IP;
-use crate::weave::vm::types::{WeaveFn, WeaveType};
+use crate::weave::vm::types::{NativeFn, NativeFnType, WeaveFn, WeaveType};
 use crate::weave::vm::types::errors::OpResult;
 use crate::weave::{Op};
 use std::collections::HashMap;
@@ -133,13 +133,19 @@ pub type VMResult = Result<WeaveType, VMError>;
 
 impl VM {
     pub fn new(debug_mode: bool) -> VM {
-        VM {
+        let mut vm = VM {
             call_stack: CallStack::new(),
             stack: Vec::with_capacity(255),
             globals: HashMap::new(),
             last_value: WeaveType::None,
             debug_mode,
-        }
+        };
+
+        NativeFnType::variants().iter().for_each(|fn_type| {
+            vm.define_native(Rc::new(NativeFn::get(fn_type.clone())));
+        });
+
+        vm
     }
 
     pub fn interpret(&mut self, source: &str) -> VMResult {
@@ -246,13 +252,30 @@ impl VM {
                 }
                 Op::Call => {
                     let arg_count= self.call_stack.next_byte() as usize;
-                    let func_slot = (self.stack.len() - 1) - arg_count - 1;
+                    let func_slot = (self.stack.len() - 1) - arg_count;
                     let func = self.stack.get(func_slot).unwrap();
-                    if let WeaveType::Fn(f) = func {
-                        self.call_stack.push(f.clone(), func_slot);
-                        self.call(f.clone(), arg_count);
-                    } else {
-                        return Err(VMError::RuntimeError { line: self.call_stack.line_number_at(-1), msg: "Only functions can be called".to_string() });
+                    self.debug(&format!("Taking {} @ {}", func, func_slot));
+                    match func {
+                        WeaveType::Fn(f) => {
+                            self.debug(&format!("Calling {} with {} arguments", f, arg_count));
+                            self.call_stack.push(f.clone(), func_slot);
+                            self.call(f.clone(), arg_count)?;
+                        }
+                        WeaveType::NativeFn(f) => {
+                            let args = if arg_count > 0 {
+                                let last_arg = self.stack.len() - 1;
+                                let first_arg = last_arg - arg_count;
+                                self.stack[first_arg..last_arg].to_vec()
+                            } else {
+                                vec![]
+                            };
+                            self.debug(&format!("Calling {} with {} arguments", f, arg_count));
+
+                            (f.func)(args)?;
+                        }
+                        _ => {
+                            return Err(VMError::RuntimeError { line: self.call_stack.line_number_at(-1), msg: "Only functions can be called".to_string() })
+                        }
                     }
                 }
                 Op::SetLocal => {
@@ -386,18 +409,22 @@ impl VM {
         self.reset_stack();
     }
 
+    fn define_native(&mut self, func: Rc<NativeFn>) {
+        let name = func.name.to_string();
+        self.globals.insert(name, WeaveType::NativeFn(func));
+    }
+
     fn reset_stack(&mut self) {
         self.stack.clear();
         self.call_stack.reset();
     }
     
     fn call(&mut self, func: Rc<WeaveFn>, arg_count: usize) -> VMResult {
-        if func.arity() != arg_count {
-            Err(VMError::RuntimeError { line: 0, msg: format!("{} Expected {} arguments but got {}", func.name, func.arity(), arg_count) })
+        if func.arity != arg_count {
+            Err(VMError::RuntimeError { line: 0, msg: format!("{} Expected {} arguments but got {}", func.name, func.arity, arg_count) })
         } else if self.call_stack.frames.len() > 100 {
             Err(VMError::RuntimeError { line: 0, msg: "Stack overflow".to_string() })
         } else {
-            // TODO: This is where the running should happen
             Ok(self._peek())
         }
     }
@@ -600,7 +627,7 @@ mod tests {
             fn add(a, b) { 
                 a + b 
             }
-            add(1, 2)
+            add(-1, 4)
         ";
         let mut vm = VM::new(true);
         let res = vm.interpret(code);

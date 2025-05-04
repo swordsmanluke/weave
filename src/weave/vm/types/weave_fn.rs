@@ -18,23 +18,21 @@ pub struct FnArg {
 pub struct WeaveFn {
     pub chunk: Chunk,
     pub name: String,
-    params: Vec<FnParam>,
+    pub arity: usize,
+    params: Vec<FnParam>,   // TODO: change fn/arg parsing
 }
 
 impl WeaveFn {
     pub fn new(name: String, params: Vec<FnParam>) -> WeaveFn {
         let chunk = Chunk::new();
-        WeaveFn { name, chunk, params }
-    }
-    
-    pub fn arity(&self) -> usize {
-        self.params.len()
+        let arity = params.len();
+        WeaveFn { name, chunk, params, arity }
     }
 }
 
 impl Display for WeaveFn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<fn {}>", self.name)
+        write!(f, "<fn {}({})>", self.name, self.arity)
     }
 }
 
@@ -44,7 +42,7 @@ impl Debug for WeaveFn {
             // top level script
             write!(f, "<script>")
         } else {
-            write!(f, "<fn {}>", self.name)
+            write!(f, "<fn {}({})>", self.name, self.arity)
         }
     }
 }

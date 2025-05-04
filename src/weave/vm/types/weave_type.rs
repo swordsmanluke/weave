@@ -4,6 +4,7 @@ use std::ops::{Add, Div, Mul, Neg, Not, Sub};
 use std::rc::Rc;
 use crate::weave::vm::types::weave_number::WeaveNumber;
 use crate::weave::vm::types::errors::OpResult;
+use crate::weave::vm::types::native_fn::NativeFn;
 use crate::weave::vm::types::weave_fn::WeaveFn;
 use crate::weave::vm::types::weave_string::WeaveString;
 
@@ -15,6 +16,7 @@ pub enum WeaveType {
     Number(WeaveNumber),
     String(WeaveString),
     Fn(Rc<WeaveFn>),
+    NativeFn(Rc<NativeFn>)
 }
 
 impl WeaveType {
@@ -80,6 +82,7 @@ impl Display for WeaveType {
             WeaveType::Boolean(b) => write!(f, "{}", b),
             WeaveType::String(s) => write!(f, "{}", s),
             WeaveType::Fn(func) => write!(f, "{}", func),
+            WeaveType::NativeFn(func) => write!(f, "{}", func),
             WeaveType::None => {write!(f, "")}
         }
     }

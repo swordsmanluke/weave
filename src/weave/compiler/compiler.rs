@@ -251,7 +251,6 @@ impl Compiler {
         if self.debug_mode { println!("compiling function"); }
         self.consume(TokenType::Identifier, "Expected function name");
         let fn_name = self.parser.previous();
-        self.add_local(fn_name.lexeme.lexeme().to_string());
         
         let mut func_compiler = self.new_func_compiler(fn_name.lexeme.lexeme().to_string());
         func_compiler.function(); // compile function
@@ -259,11 +258,8 @@ impl Compiler {
         self.parser = func_compiler.parser;  // leap forward to the end of the function
 
         let line = self.line;
-        let global = self.current_chunk().add_constant(WeaveType::Fn(func_compiler.function.into()), line);
-        if self.debug_mode {
-            println!("function {} compiled as global {}", fn_name.lexeme.lexeme(), global);
-            println!("Globals: {:?}", self.current_chunk().constants);
-        }
+        self.current_chunk().add_constant(WeaveType::Fn(func_compiler.function.into()), line);
+        self.set_named_variable(fn_name.lexeme.lexeme().to_string());
     }
 
     fn function(&mut self) {
@@ -272,7 +268,7 @@ impl Compiler {
         self.consume(TokenType::LeftParen, "Expected '(' after function name");
         self.function_params();
         self.consume(TokenType::RightParen, "Expected ')' after function params");
-
+        
         self.consume(TokenType::LeftBrace, "Expected '{' before function body");
         self.block();
         if self.debug_mode { 
@@ -285,6 +281,7 @@ impl Compiler {
         if !self.parser.cur_is(TokenType::RightParen) {
             loop {
                 self.consume(TokenType::Identifier, "Expected parameter name");
+                self.function.arity += 1;
                 self.add_local(self.parser.previous().lexeme.lexeme().to_string());
                 if !self.check(TokenType::Comma) { break; }
             }
