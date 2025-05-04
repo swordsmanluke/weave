@@ -1,4 +1,5 @@
 use crate::weave::vm::vm::{VMError, VM};
+use crate::weave::shell::repl::repl;
 
 mod weave;
 use std::env;
@@ -25,30 +26,3 @@ fn run_file(path: &str) {
     }
 }
 
-fn repl() {
-    let mut vm = VM::new(true);
-    
-    loop {
-        // TODO: Allow multi-line input and parsing
-        
-        print!("> ");
-        std::io::stdout().flush().unwrap();
-        let mut line = String::new();
-        std::io::stdin().read_line(&mut line).unwrap();
-    
-        match vm.interpret(&line) {
-            Ok(r) => { println!("{}", r) },
-            Err(e) => {
-                match &e {
-                    VMError::RuntimeError{line, msg} => {
-                        println!("[line {}] {}", line, msg);
-                        continue
-                    },
-                    VMError::CompilationError(msg) => println!("Compilation Error: {}", msg),
-                    _ => println!("Error: {:?}", e),
-                }
-                exit(e.exit_code())
-            },
-        }
-    }
-}
