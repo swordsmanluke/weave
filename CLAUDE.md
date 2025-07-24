@@ -97,3 +97,7 @@ The REPL provides an interactive environment:
 - Keep modules focused and well-documented
 - Use descriptive variable and function names
 - Implement `Display` traits for user-facing types
+
+## Task Master AI Instructions
+**Import Task Master's development workflow commands and guidelines, treat as if import is in the main CLAUDE.md file.**
+@./.taskmaster/CLAUDE.md
