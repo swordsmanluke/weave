@@ -6,6 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Weaver is a dynamically-typed programming language interpreter written in Rust. It features a bytecode compiler and stack-based virtual machine with support for closures, functions, and an interactive REPL.
 
+## Development Strategy
+
+### Phase 0: Get Ready
+1. Run the Unit tests with `cargo test` - is anything broken? If so, STOP and ask the User if they would like you to fix the tests.
+2. If there are no ready Tasks: Move to Phase 1 to discover the User's next ask.
+3. If there are 
+
+### Phase 1: Discover Requirements
+1. Use the /discovery process to ask questions of the User to discover the new requirements.
+2. Use task-master to capture the new Tasks
+3. Use task-master to examine to break down the new Tasks into subtasks and look for hidden complexity.
+
+### Phase 2: Deliver a Task
+1. Select the next task from task-master
+2. reflect - are you ready to implement this? if not, abort and ask for help.
+3. Begin by creating tests to verify the desired behavior
+4. Use task-master's smart-implemntation workflow to develop the task. 
+5. Run the unit tests regularly to verify that progress is being made and that no regressions were introduced.
+
 ## Development Commands
 
 ### Build and Run
