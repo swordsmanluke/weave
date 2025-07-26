@@ -2,6 +2,7 @@ use crate::weave::Chunk;
 use crate::weave::Op::INVALID;
 use crate::weave::vm::traits::disassemble::Disassemble;
 use crate::log_debug;
+use crate::weave::vm::types::{FnClosure, Upvalue, WeaveType};
 
 #[derive(Debug, PartialEq)]
 pub enum Op {
@@ -13,6 +14,8 @@ pub enum Op {
     GetGlobal,
     SetLocal,
     GetLocal,
+    SetUpvalue,
+    GetUpvalue,
     
     // Boolean
     NOT,
@@ -33,6 +36,7 @@ pub enum Op {
     Loop,
     Jump,
     JumpIfFalse,
+    Closure,
     Call,
     RETURN,
     POP,
@@ -41,8 +45,7 @@ pub enum Op {
     PRINT,
     
     // Error handling
-    INVALID(u8)
-
+    INVALID(u8),
 }
 
 impl Op {
@@ -67,10 +70,14 @@ impl Op {
             Op::GetGlobal => vec![16],
             Op::SetLocal => vec![17],
             Op::GetLocal => vec![18],
+            Op::Closure => vec![19],
             Op::JumpIfFalse => vec![20],
             Op::Jump => vec![21],
             Op::Loop => vec![22],
             Op::Call => vec![23],
+            
+            Op::SetUpvalue => vec![24],
+            Op::GetUpvalue => vec![25],
             
             Op::INVALID(byte) => vec![255],
         }
@@ -98,10 +105,14 @@ impl Op {
             16 => Op::GetGlobal,
             17 => Op::SetLocal,
             18 => Op::GetLocal,
+            19 => Op::Closure,
             20 => Op::JumpIfFalse,
             21 => Op::Jump,
             22 => Op::Loop,
             23 => Op::Call,
+            
+            24 => Op::SetUpvalue,
+            25 => Op::GetUpvalue,
 
             _ => INVALID(byte), // Should never happen, but when it does - die.
         }
@@ -118,7 +129,7 @@ impl Disassemble for Op {
     fn disassemble(&self, offset: usize, chunk: &Chunk) -> usize {
         match self {
             Op::CONSTANT => {
-                log_debug!("Disassemble CONSTANT start", offset = format!("{:04x}", offset).as_str(), line = chunk.line_str(offset).as_str());
+                log_debug!("Disassemble CONSTANT/Closure start", offset = format!("{:04x}", offset).as_str(), line = chunk.line_str(offset).as_str());
                 let mut offset = offset + 1; // Skip the opcode, already consumed
 
                 // Read two bytes for the index
@@ -128,6 +139,32 @@ impl Disassemble for Op {
                 // Now retrieve the value from the constants table and print it
                 let value = &chunk.constants[idx];
                 log_debug!("Disassemble CONSTANT", idx = idx, value = format!("{}", value).as_str());
+                offset
+            },
+            Op::Closure => {
+                print!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
+                let mut offset = offset + 1; // Skip the opcode, already consumed
+
+                // Read two bytes for the function index
+                let idx = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
+                offset += 2;
+
+                // retrieve the value from the constants table and print it
+                let value = &chunk.constants[idx];
+                println!("\t{0:04x}  {1}", idx, value);
+                
+                // Now read N upvalues, and show them too.
+                match value {
+                    WeaveType::Closure(c) => {
+                        for i in 0..c.func.upvalue_count {
+                            let upvalue = Upvalue::from_bytes(&chunk.code, offset);
+                            println!("\t\t{0}  {1:04x}", upvalue, i);
+                            offset += 2;
+                        }
+                    }
+                    _ => { println!("\t\tNone"); }
+                }
+                
                 offset
             },
             Op::Call => {
@@ -166,6 +203,10 @@ impl Disassemble for Op {
                 let slot = chunk.code[offset + 1];
                 let value = &chunk.constants.get(slot as usize);
                 log_debug!("Disassemble Local", slot = slot, value = format!("{:?}", value).as_str());
+                offset + 2
+            }
+            Op::GetUpvalue | Op::SetUpvalue => {
+                println!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
                 offset + 2
             }
             op => {

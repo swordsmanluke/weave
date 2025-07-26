@@ -1,0 +1,10 @@
+fn outer() {
+  a = 1;
+  puts a;
+  fn inner() {
+    puts a;
+    a
+  }
+  inner()
+}
+puts outer()

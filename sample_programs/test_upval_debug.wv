@@ -1,0 +1,14 @@
+fn outer() {
+  a = 1
+  b = 2
+  fn middle() {
+    c = 3
+    d = 4
+    fn inner() {
+      a + c + b + d
+    }
+    inner()
+  }
+  middle()
+}
+outer()

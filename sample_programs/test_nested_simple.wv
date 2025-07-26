@@ -1,0 +1,9 @@
+fn outer(x) {
+  fn inner(y) {
+    x + y
+  }
+  inner
+}
+
+f = outer(5)
+puts(f(3))

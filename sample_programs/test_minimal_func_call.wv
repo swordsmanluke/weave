@@ -1,0 +1,3 @@
+fn add(a) { a + 1 }
+result = add(5)
+puts result

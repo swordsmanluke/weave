@@ -1,0 +1,43 @@
+# Task ID: 2
+# Title: Implement Upvalue Chain Resolution
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Create mechanism to resolve upvalues through multiple scope levels for nested closures
+# Details:
+Implement upvalue linking system in VM to traverse call stack for nested closure upvalue resolution. Add upvalue chain tracking to CallFrame structure. When resolving upvalue, walk through parent frames to find the correct variable binding. Follow Crafting Interpreters approach adapted for Rust - maintain chain of upvalue references that can traverse multiple nesting levels. Ensure O(1) resolution after initial capture setup.
+
+# Test Strategy:
+Test nested closure scenarios like outer(1)(2)(3), verify upvalue resolution through multiple scope levels, validate performance with deeply nested closures
+
+# Subtasks:
+## 1. Design Upvalue Chain Data Structure [done]
+### Dependencies: None
+### Description: Design and implement the core data structures for upvalue chain representation in CallFrame and VM
+### Details:
+Create UpvalueChain struct to represent linked upvalue references. Add upvalue_chain field to CallFrame structure to maintain parent-child relationships. Design UpvalueRef enum to distinguish between open (stack-based) and closed (heap-based) upvalues. Implement Clone and Debug traits for debugging. Ensure structure supports O(1) access after initial resolution and can handle arbitrary nesting depths.
+
+## 2. Implement Stack Frame Traversal Logic [done]
+### Dependencies: 2.1
+### Description: Build the core algorithm to traverse call frames and resolve upvalues through multiple scope levels
+### Details:
+Implement resolve_upvalue method in VM that walks the call stack to find target variables. Create frame traversal iterator that follows parent frame links. Add logic to check each frame's locals before moving to parent scope. Implement caching mechanism to store resolved upvalue locations for O(1) subsequent access. Handle edge cases where upvalue spans more than 3 levels of nesting.
+
+## 3. Integrate Upvalue Chain with Opcode Handlers [done]
+### Dependencies: 2.2
+### Description: Modify GetUpvalue and SetUpvalue opcodes to use the new upvalue chain resolution mechanism
+### Details:
+Update GetUpvalue opcode handler to use resolve_upvalue for chain traversal. Modify SetUpvalue to correctly update values through the chain. Ensure opcodes handle both open and closed upvalues transparently. Add proper error handling for invalid upvalue indices. Maintain backward compatibility with existing single-level closure code.
+
+## 4. Implement Upvalue Capture Optimization [done]
+### Dependencies: 2.3
+### Description: Optimize upvalue capture to minimize chain traversal overhead and ensure O(1) access after initial resolution
+### Details:
+Implement upvalue resolution cache in WeaveFn structure. Add fast-path for already-resolved upvalues using cached references. Implement lazy resolution strategy that defers chain traversal until first access. Ensure cache invalidation when call frames are popped. Add memory pooling for UpvalueRef allocations to reduce allocation overhead.
+
+## 5. Add Comprehensive Chain Resolution Tests [done]
+### Dependencies: 2.4
+### Description: Create thorough test suite specifically for upvalue chain resolution across multiple nesting levels
+### Details:
+Write test cases for the canonical outer(1)(2)(3) nested closure example. Test upvalue resolution with mixed local and upvalue access patterns. Add stress tests with 10+ levels of nesting. Test scenarios where multiple closures share upvalues at different nesting levels. Verify chain resolution works correctly when frames are popped during returns. Add regression tests for existing closure functionality.
+

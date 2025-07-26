@@ -1,0 +1,43 @@
+# Task ID: 10
+# Title: Documentation and REPL Integration
+# Status: pending
+# Dependencies: 9
+# Priority: low
+# Description: Update documentation and ensure proper REPL support for nested closures
+# Details:
+Update project documentation to reflect new nested closure capabilities. Ensure REPL properly handles closure display (showing identifier when not invoked, evaluating when called). Update language examples and usage documentation. Verify closure integration with built-in functions like puts(). Test REPL interaction patterns with nested closures. Update any existing code comments and inline documentation to reflect new implementation details.
+
+# Test Strategy:
+REPL interaction tests, documentation accuracy review, integration with built-in functions validation, example code verification
+
+# Subtasks:
+## 1. Update Language Documentation for Nested Closures [pending]
+### Dependencies: None
+### Description: Revise all language documentation to include nested closure syntax, behavior, and usage patterns
+### Details:
+Update README.md with nested closure examples and syntax. Add comprehensive closure documentation section explaining single and nested closure behavior. Document closure capture semantics, including how variables are captured from multiple scope levels. Include practical examples demonstrating nested closure use cases like currying, partial application, and factory functions. Update any existing function documentation to clarify closure support.
+
+## 2. Implement REPL Closure Display Logic [pending]
+### Dependencies: None
+### Description: Enhance REPL to properly display closure identifiers when not invoked and evaluate when called
+### Details:
+Modify REPL evaluation logic in main.rs to detect closure values and display them as '<closure>' or similar identifier when not invoked. Ensure proper differentiation between closure reference and closure invocation (with parentheses). Update REPL output formatting to handle nested closure chains gracefully. Implement consistent display format for partially applied closures. Add REPL-specific handling for closure introspection if needed.
+
+## 3. Create Comprehensive Closure Examples [pending]
+### Dependencies: 10.1
+### Description: Develop example Weaver programs demonstrating nested closure capabilities and patterns
+### Details:
+Create examples/ directory with closure demonstration programs. Include basic closure examples (counter, accumulator). Add nested closure examples showing multiple levels of capture. Demonstrate practical patterns: currying, partial application, factory functions, callbacks. Create examples showing closure interaction with built-in functions. Add comments explaining closure behavior in each example.
+
+## 4. Test and Document Built-in Function Integration [pending]
+### Dependencies: 10.2
+### Description: Verify and document how closures interact with built-in functions like puts()
+### Details:
+Test closure behavior when passed to built-in functions like puts(). Document any special handling or limitations when closures interact with native functions. Verify closure invocation works correctly within native function contexts. Update built-in function documentation to clarify closure parameter support. Add test cases for edge cases like passing partially applied closures to built-ins.
+
+## 5. Update Code Comments and Implementation Documentation [pending]
+### Dependencies: 10.1, 10.3, 10.4
+### Description: Revise inline code comments and implementation notes to reflect nested closure support
+### Details:
+Update comments in compiler.rs explaining nested closure compilation strategy. Document upvalue resolution mechanism in vm.rs with clear examples. Add comments to closure-related opcodes explaining their behavior with nested closures. Update type system documentation in types/ to clarify closure representation. Ensure all TODO comments related to closures are addressed or updated. Add architectural notes explaining the closure implementation approach.
+

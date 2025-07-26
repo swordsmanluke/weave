@@ -1,0 +1,14 @@
+fn test_func(x) {
+    puts x  # Debug what gets passed
+    x + 10
+}
+
+# Test simple function call - this should work
+puts test_func(5)
+
+# Test binary expression with function call - this might fail  
+puts 2 * test_func(3)
+
+# Test the problematic pattern from factorial
+fn add_one(n) { n + 1 }
+puts 5 * add_one(2)

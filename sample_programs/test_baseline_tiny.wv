@@ -1,0 +1,8 @@
+# Baseline test - 10 iterations without closures
+count = 0
+i = 0
+while i < 10 {
+    count = count + 1
+    i = i + 1
+}
+puts count  # Should be 10

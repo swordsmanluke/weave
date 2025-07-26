@@ -1,4 +1,4 @@
-use crate::weave::vm::vm::{VMError, VM};
+use crate::weave::vm::vm::VM;
 use crate::weave::shell::repl::repl;
 use crate::weave::logging::{LoggingConfig, LogLevel, LogFormat};
 

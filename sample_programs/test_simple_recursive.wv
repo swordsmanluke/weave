@@ -1,0 +1,9 @@
+fn test(n) {
+    if n <= 1 {
+        1
+    } else {
+        n * test(n - 1)
+    }
+}
+
+puts test(3)

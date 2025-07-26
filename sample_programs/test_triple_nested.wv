@@ -1,0 +1,12 @@
+fn outer(x) {
+  fn middle(y) {
+    fn inner(z) {
+      x + y + z
+    }
+    inner
+  }
+  middle
+}
+
+result = outer(1)(2)(3)
+puts(result)

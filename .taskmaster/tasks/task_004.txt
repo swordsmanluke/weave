@@ -1,0 +1,43 @@
+# Task ID: 4
+# Title: Fix VM Upvalue Resolution Through Call Stack
+# Status: done
+# Dependencies: 2, 3
+# Priority: high
+# Description: Implement proper upvalue resolution in VM that correctly traces through the call stack for nested closures
+# Details:
+Fix VM upvalue resolution in vm.rs to properly handle nested closures. Implement call stack traversal to find upvalue bindings across multiple function call levels. Modify GetUpvalue and SetUpvalue opcode handlers to use upvalue chain resolution. Ensure upvalue lookups correctly find variables in parent scopes regardless of nesting depth. Handle edge cases where upvalues span multiple call frames.
+
+# Test Strategy:
+Integration tests with nested closure examples, verify call stack traversal works correctly, test upvalue access across multiple nesting levels
+
+# Subtasks:
+## 1. Add Upvalue Chain Tracking to CallFrame [done]
+### Dependencies: None
+### Description: Enhance CallFrame structure to maintain upvalue chain references for traversal
+### Details:
+Modify the CallFrame struct in vm.rs to include upvalue chain tracking fields. Add a vector or linked structure to store references to upvalues captured by the current function. Include parent frame reference to enable traversal up the call stack. Ensure the structure supports efficient lookup and traversal for nested closure scenarios.
+
+## 2. Implement Stack Traversal for Upvalue Resolution [done]
+### Dependencies: 4.1
+### Description: Create mechanism to walk the call stack searching for upvalue bindings
+### Details:
+Implement a resolve_upvalue method in the VM that traverses the call stack to find upvalue bindings. Start from the current frame and walk up through parent frames using the chain references. Handle cases where upvalues may be in grandparent or higher ancestor frames. Ensure the traversal correctly identifies the frame containing the target upvalue and returns appropriate references.
+
+## 3. Refactor GetUpvalue Opcode Handler [done]
+### Dependencies: 4.2
+### Description: Modify GetUpvalue implementation to use call stack traversal for resolution
+### Details:
+Update the GetUpvalue opcode handler in vm.rs to use the new stack traversal mechanism. Replace direct upvalue access with call to resolve_upvalue method. Handle both open upvalues (stack references) and closed upvalues (heap values) correctly. Ensure the handler properly pushes resolved values onto the VM stack. Add error handling for invalid upvalue indices.
+
+## 4. Refactor SetUpvalue Opcode Handler [done]
+### Dependencies: 4.2
+### Description: Modify SetUpvalue implementation to correctly update upvalues through call stack
+### Details:
+Update the SetUpvalue opcode handler to use stack traversal for finding the correct upvalue to modify. Ensure mutations properly update the original value whether it's on the stack (open) or heap (closed). Handle reference semantics correctly so all closures sharing the upvalue see updates. Add proper bounds checking and error handling for invalid upvalue operations.
+
+## 5. Handle Multi-Frame Upvalue Edge Cases [done]
+### Dependencies: 4.3, 4.4
+### Description: Implement robust handling for complex upvalue scenarios spanning multiple frames
+### Details:
+Add comprehensive edge case handling for upvalues that span multiple call frames. Handle scenarios where functions return while upvalues are still referenced. Ensure correct behavior when upvalues are accessed after their defining frame has been popped. Implement proper cleanup and reference counting to prevent memory leaks. Add debugging support to trace upvalue resolution paths.
+

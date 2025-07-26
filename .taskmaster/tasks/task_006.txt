@@ -1,0 +1,43 @@
+# Task ID: 6
+# Title: Add Mutable Upvalue Support
+# Status: done
+# Dependencies: 5
+# Priority: medium
+# Description: Enable modification of captured variables within closures with proper reference sharing
+# Details:
+Implement mutable upvalue support using Rc<RefCell<WeaveValue>> for shared mutable access. Modify SetUpvalue opcode to handle mutable references correctly. Ensure multiple closures capturing the same variable can all modify it and see changes. Implement proper borrowing semantics to prevent runtime panics. Add counter example functionality where closure can increment captured variable state.
+
+# Test Strategy:
+Test counter closure example, verify multiple closures sharing mutable upvalue, test state persistence across closure calls, validate no borrowing conflicts
+
+# Subtasks:
+## 1. Refactor WeaveUpvalue to Use Rc<RefCell<WeaveValue>> [done]
+### Dependencies: None
+### Description: Convert WeaveUpvalue struct to use Rc<RefCell<WeaveValue>> for shared mutable access instead of current immutable design
+### Details:
+Modify src/weave/vm/types/upvalue.rs to change WeaveUpvalue storage from WeaveValue to Rc<RefCell<WeaveValue>>. Update the struct definition to support mutable references. Ensure all existing upvalue creation points are updated to wrap values in Rc<RefCell>. Maintain compatibility with existing open/closed upvalue states while adding mutability support.
+
+## 2. Update SetUpvalue Opcode Handler for Mutable References [done]
+### Dependencies: 6.1
+### Description: Modify SetUpvalue opcode implementation in VM to handle mutable upvalue references correctly
+### Details:
+Update the SetUpvalue case in vm.rs to work with Rc<RefCell<WeaveValue>>. Implement proper borrowing using borrow_mut() to modify upvalue contents. Add error handling for borrow conflicts. Ensure the opcode can update both open (stack-based) and closed (heap-based) upvalues with the new mutable reference system.
+
+## 3. Update GetUpvalue Opcode for RefCell Borrowing [done]
+### Dependencies: 6.1
+### Description: Modify GetUpvalue opcode to properly borrow from RefCell when accessing upvalue contents
+### Details:
+Update GetUpvalue implementation in vm.rs to use borrow() method when reading upvalue contents. Ensure immutable borrows are properly scoped to prevent conflicts with mutable borrows. Handle both open and closed upvalue access patterns. Clone the inner value when pushing to stack to maintain ownership semantics.
+
+## 4. Implement Shared Mutable Access Across Multiple Closures [done]
+### Dependencies: 6.2, 6.3
+### Description: Ensure multiple closures capturing the same variable can all modify it and see each other's changes
+### Details:
+Modify upvalue capture mechanism to ensure multiple closures share the same Rc<RefCell<WeaveValue>> instance when capturing the same variable. Update compiler's upvalue resolution to reuse existing upvalue references. Implement proper Rc cloning when creating new closures. Ensure changes made by one closure are visible to all other closures sharing the upvalue.
+
+## 5. Add Counter Example and Integration Tests [done]
+### Dependencies: 6.4
+### Description: Implement and test counter closure example demonstrating mutable upvalue functionality
+### Details:
+Create a counter function that returns a closure incrementing a captured variable. Add integration tests in vm.rs demonstrating: 1) Basic counter increment functionality, 2) Multiple counter closures sharing state, 3) Nested closures with mutable upvalues, 4) Complex state manipulation patterns. Ensure no borrowing conflicts occur during typical usage patterns.
+

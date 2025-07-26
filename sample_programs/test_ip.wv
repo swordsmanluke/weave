@@ -1,0 +1,8 @@
+fn test() {
+    puts("Hello from function");
+    return 42;
+}
+
+puts("Starting program");
+let result = test();
+puts(result);

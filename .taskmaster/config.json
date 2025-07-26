@@ -7,15 +7,15 @@
       "temperature": 0.2
     },
     "research": {
-      "provider": "mcp",
-      "modelId": "mcp-sampling",
-      "maxTokens": 100000,
+      "provider": "claude-code",
+      "modelId": "opus",
+      "maxTokens": 32000,
       "temperature": 0.1
     },
     "fallback": {
       "provider": "claude-code",
-      "modelId": "sonnet",
-      "maxTokens": 64000,
+      "modelId": "opus",
+      "maxTokens": 32000,
       "temperature": 0.2
     }
   },

@@ -1,0 +1,43 @@
+# Task ID: 1
+# Title: Refactor Upvalue Data Structures
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Redesign upvalue storage to distinguish between open upvalues (stack references) and closed upvalues (heap-allocated values)
+# Details:
+Modify WeaveUpvalue in src/weave/vm/types/ to support both open and closed states. Open upvalues should reference stack locations while parent function is active. Closed upvalues should be heap-allocated Rc<RefCell<WeaveValue>> when parent scope ends. Add state tracking enum (Open/Closed) and implement conversion methods. Use existing heap structure Vec<Rc<RefCell<WeaveValue>>> for closed upvalues.
+
+# Test Strategy:
+Unit tests for upvalue state transitions, memory allocation tests, verify open upvalues reference correct stack slots and closed upvalues are properly heap-allocated
+
+# Subtasks:
+## 1. Define Upvalue State Enum and Core Types [done]
+### Dependencies: None
+### Description: Create enum to represent Open/Closed upvalue states and define core data structures
+### Details:
+In src/weave/vm/types/mod.rs, create UpvalueState enum with Open(stack_index: usize) and Closed(value: Rc<RefCell<WeaveValue>>) variants. This enum will be the foundation for distinguishing between stack-referenced and heap-allocated upvalues. Ensure the enum is properly integrated with existing WeaveType system.
+
+## 2. Refactor WeaveUpvalue Structure [done]
+### Dependencies: 1.1
+### Description: Modify WeaveUpvalue to incorporate state tracking and support both open and closed states
+### Details:
+Refactor WeaveUpvalue struct to include the UpvalueState enum. Replace existing value storage with state-based approach. Implement methods like is_open(), is_closed(), get_value(), and set_value() that handle both states appropriately. Ensure WeaveUpvalue can seamlessly transition between states.
+
+## 3. Implement Stack Reference Management for Open Upvalues [done]
+### Dependencies: 1.2
+### Description: Create mechanism for open upvalues to safely reference stack locations
+### Details:
+Implement stack reference logic for open upvalues. Add methods to WeaveUpvalue that can safely access stack values through indices. Create validation to ensure stack indices remain valid while parent function is active. Consider adding debug assertions to catch invalid stack access attempts.
+
+## 4. Implement Upvalue Closing Mechanism [done]
+### Dependencies: 1.3
+### Description: Create conversion methods to close open upvalues when parent scope ends
+### Details:
+Implement close() method on WeaveUpvalue that transitions from Open to Closed state. When closing, capture the current stack value and allocate it on the heap using Rc<RefCell<WeaveValue>>. Ensure the closing process is atomic and handles all edge cases. Add integration with VM to trigger closing when function scope exits.
+
+## 5. Integrate Upvalue State Management with VM [done]
+### Dependencies: 1.4
+### Description: Update VM operations to handle new upvalue state system
+### Details:
+Modify VM's GetUpvalue and SetUpvalue opcode handlers to work with the new state-based upvalue system. Update closure creation to properly initialize upvalues in open state. Implement scope exit logic that closes all open upvalues referencing the exiting scope. Ensure VM maintains a list of open upvalues for efficient closing.
+

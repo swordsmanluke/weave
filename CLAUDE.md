@@ -42,6 +42,7 @@ Samples of Weave syntax can be found in docs/syntax.md
 - `cargo test` - Run all tests
 - `cargo test <test_name>` - Run specific test
 - `cargo test -- --nocapture` - Run tests with println! output visible
+- `cargo run ./sample_weave/<weave file>` - run a sample Weave program to verify compilation
 - `cargo check` - Quick syntax and type checking
 - `cargo fmt` - Format code according to Rust standards
 - `cargo clippy` - Run Rust linter for code improvements
@@ -60,9 +61,8 @@ The compiler (`src/weave/compiler/`) transforms source code into bytecode:
 ### Virtual Machine
 The VM (`src/weave/vm/`) executes bytecode:
 - **Stack-based execution** with instruction pointer
-- **Garbage collected** heap for dynamic values
 - **Native function** support for built-in operations
-- **Closure support** with upvalues (currently being enhanced)
+- **Closure support** with upvalues (currently being implemented)
 
 ### Type System
 Located in `src/weave/vm/types/`:
@@ -75,7 +75,7 @@ Located in `src/weave/vm/types/`:
 
 **Supported Syntax:**
 - Variables and assignment
-- Functions with `fn` keyword and closures
+- Functions with `fn` keyword, closures, and lambdas
 - Control flow: `if`/`else`, `while` loops
 - Operators: arithmetic, comparison, logical
 - Comments starting with `#`
@@ -84,17 +84,24 @@ Located in `src/weave/vm/types/`:
 **Built-in Functions:**
 - `puts(value)` - Print to stdout (temporary until print() is implemented)
 
+**Functions and Lambdas**
+- **Function**: `fn foo(a, b) { a + b }` 
+- **Lambda**: `foo = ^(a, b) { a + b }`
+- 
+
 ## Testing Strategy
 
 Tests are embedded in source files using Rust's `#[test]` attribute. Key test locations:
 - VM execution tests: `src/weave/vm/vm.rs`
 - Compiler tests: `src/weave/compiler/compiler.rs`
 - Scanner tests: `src/weave/compiler/scanner.rs`
+- Sample Weave programs: `sample_weave/*.wv`
 
 When adding features:
-1. Add unit tests in the relevant module
+1. Add unit tests covering the new behavior
 2. Test edge cases and error conditions
 3. Use descriptive test names
+4. Use TDD practices to enhance
 
 ## Current Development Focus
 
@@ -119,9 +126,10 @@ The REPL provides an interactive environment:
 ## Code Style Guidelines
 
 - Follow Rust idioms and conventions
+- Run `cargo test` regularly to avoid regressions
 - Use `cargo fmt` before committing
 - Address `cargo clippy` warnings
-- Keep modules focused and well-documented
+- Keep modules small, focused and well-documented
 - Use descriptive variable and function names
 - Implement `Display` traits for user-facing types
 

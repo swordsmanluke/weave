@@ -1,0 +1,17 @@
+fn outer() {
+  a = 1
+  b = 2
+  fn middle() {
+    c = 3
+    d = 4
+    puts(a)
+    puts(b)
+    puts(c)
+    puts(d)
+    [a, b, c, d]
+  }
+  middle()
+}
+result = outer()
+
+puts result

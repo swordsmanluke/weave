@@ -1,0 +1,35 @@
+# Test what happens with recursive closure attempts
+# This should ideally produce an error or at least not crash
+
+# Direct recursion attempt
+fn test_direct_recursion() {
+    fn factorial(n) {
+        if n <= 1 {
+            1
+        } else {
+            n * factorial(n - 1)  # This should work - it's not a closure capturing itself
+        }
+    }
+    puts factorial(5)  # Should print 120
+}
+
+# Problematic recursive closure attempt
+fn test_closure_recursion() {
+    make_factorial = fn() {
+        fact = fn(n) {
+            if n <= 1 {
+                1 
+            } else {
+                n * fact(n - 1)  # This tries to capture 'fact' before it's fully defined
+            }
+        }
+        fact
+    }
+    
+    # Let's see what happens...
+    f = make_factorial()
+    # puts f(5)  # Commented out - might crash
+}
+
+test_direct_recursion()
+# test_closure_recursion()  # Commented out for safety

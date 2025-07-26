@@ -1,0 +1,19 @@
+# Test closure performance with hot loops
+fn test_hot_loop() {
+    count = 0
+    
+    fn increment() {
+        count = count + 1
+    }
+    
+    # Hot loop - 5000 iterations
+    i = 0
+    while i < 5000 {
+        increment()
+        i = i + 1
+    }
+    
+    puts count  # Should be 5000
+}
+
+test_hot_loop()

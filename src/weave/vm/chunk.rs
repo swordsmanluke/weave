@@ -1,7 +1,7 @@
 use std::fmt::{Error};
 use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;
-use crate::weave::vm::types::WeaveType;
+use crate::weave::vm::types::{Upvalue, WeaveType};
 use crate::log_debug;
 
 #[derive(Clone, Debug)]
@@ -49,17 +49,25 @@ impl Chunk {
         }
     }
 
-    pub fn add_constant(&mut self, value: WeaveType, line: usize) -> usize {
+    pub fn emit_constant(&mut self, value: WeaveType, line: usize) -> usize {
         self.write_op(Op::CONSTANT, line);
-        let idx = if self.constants.contains(&value) {
-            self.constants.iter().position(|v| *v == value).unwrap() as u16
+        self.add_constant(value, line)
+    }
+
+    pub fn add_constant(&mut self, value: WeaveType, line: usize) -> usize {
+        let idx = self.add_constant_only(value);
+        self.write(&(idx as u16).to_be_bytes().to_vec(), line); // Write BigEndian bytes to the chunk
+        idx
+    }
+
+    /// Add a constant to the constants table without emitting bytecode
+    pub fn add_constant_only(&mut self, value: WeaveType) -> usize {
+        if self.constants.contains(&value) {
+            self.constants.iter().position(|v| *v == value).unwrap()
         } else {
             self.constants.push(value);
-            (self.constants.len() - 1) as u16
-        };
-        
-        self.write(&idx.to_be_bytes().to_vec(), line); // Write BigEndian bytes to the chunk
-        idx as usize
+            self.constants.len() - 1
+        }
     }
 
     pub fn get_constant(&self, idx: usize) -> &WeaveType {

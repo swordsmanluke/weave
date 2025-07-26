@@ -1,0 +1,29 @@
+# Test current behavior with recursive references
+
+# This works - regular recursive function
+fn factorial(n) {
+    if n <= 1 {
+        1
+    } else {
+        n * factorial(n - 1)
+    }
+}
+
+puts factorial(5)  # Should print 120
+
+# This might cause issues - closure capturing itself
+fn test_self_capture() {
+    f = 0  # Initialize first
+    f = fn(n) {
+        if n <= 1 {
+            1
+        } else {
+            n * f(n - 1)  # f tries to capture itself
+        }
+    }
+    f
+}
+
+# Test it
+recursive_fn = test_self_capture()
+puts recursive_fn(5)  # Let's see what happens...

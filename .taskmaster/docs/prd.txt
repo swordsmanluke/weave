@@ -1,135 +1,100 @@
-# Logging System for Weaver Compiler/VM - Product Requirements Document
-
-## Overview
-Implement a comprehensive logging system for the Weaver language interpreter to replace scattered print statements with a structured, configurable logging solution that supports file output, console output control, and severity-based filtering.
+# Weave Interpreter: Fix Recursive Function Call Issues
 
 ## Problem Statement
-Currently, the Weaver codebase uses print statements throughout the compiler and VM for debugging and diagnostic purposes. This approach is:
-- Difficult to filter or manage
-- Distracting during normal operation
-- Not suitable for production use
-- Lacks severity levels and context
-- Cannot be easily redirected or controlled
 
-## Users & Stakeholders
-- **Primary Users**: Developers working on the Weaver interpreter
-  - Need detailed logging for debugging compiler issues
-  - Need to track VM execution flow during development
-  - Need performance profiling information
-  - Want logs enabled by default during development (will be disabled by default in future releases)
+The Weave interpreter currently has multiple critical bugs preventing recursive function calls from working correctly. When attempting to execute recursive functions like factorial, the interpreter fails with errors like "Cannot multiply '<fn factorial(1)>' and '1.00'", indicating that function calls within binary expressions are returning function objects instead of executing the functions.
 
-## User Stories
+## Root Cause Analysis
 
-### Story 1: Basic Logging with Severity Levels
-**As a** Weaver developer
-**I want** to log messages with different severity levels (DEBUG, INFO, WARN, ERROR)
-**So that** I can categorize and filter log output based on importance
+Through extensive debugging and trace analysis, we've identified three interconnected issues:
 
-**Acceptance Criteria:**
-- Given a log statement with severity DEBUG, when logging is configured for INFO or higher, then the message is not output
-- Given a log statement with severity ERROR, when any logging level is active, then the message is always output
-- Given multiple log statements of different severities, when filtered by level, then only appropriate messages appear
+1. **Parser Precedence Bug**: The precedence parser fails to generate `Op::Call` instructions for function calls within binary expressions (e.g., `n * factorial(n-1)`). The parser treats the function identifier as a variable lookup (`GetGlobal`) instead of recognizing the following parentheses as triggering a function call.
 
-### Story 2: Structured Log Output with Context
-**As a** Weaver developer  
-**I want** to include structured context data with my log messages
-**So that** I can capture relevant debugging information like thread IDs, variable values, etc.
+2. **VM Call Mechanism Issue**: The `call()` method in the VM was returning `Ok(self._peek())` without proper execution flow, though this may be working correctly in some contexts.
 
-**Acceptance Criteria:**
-- Given a log call with named parameters like `log.info("message", {thread_id: 123})`, when output as text, then format as `<timestamp> - file.rs:132 - thread_id: 123 - "message"`
-- Given a log call with multiple context values, when output as text, then all values appear before the message
-- Given a log call with context, when output as JSON, then context values appear as top-level keys
+3. **Stack Indexing Bug**: Local variable access has off-by-one errors causing index out of bounds panics when functions have multiple call frames. The slot calculation `frame.slot + relative_slot` produces invalid stack indices.
 
-### Story 3: File Output by Default
-**As a** Weaver developer
-**I want** logs to be written to a file by default
-**So that** I can review execution history without cluttering the console
+## Success Criteria
 
-**Acceptance Criteria:**
-- Given no explicit configuration, when the application runs, then logs are written to a default log file
-- Given a log file exists, when new logs are written, then they are appended (not overwritten)
-- Given the log file path, when specified via CLI or config, then logs go to that location
-
-### Story 4: Command Line Control
-**As a** Weaver developer
-**I want** command line switches to control logging behavior
-**So that** I can adjust logging without changing code
-
-**Acceptance Criteria:**
-- Given a --log-level flag, when set to WARN, then only WARN and ERROR messages appear
-- Given a --log-console flag, when present, then logs also output to console
-- Given a --log-file flag with path, when specified, then logs write to that file
-- Given no logging flags, when running, then logs write to default file location only
+1. **Recursive Functions Work**: `factorial(5)` should correctly compute and return `120.00`
+2. **Binary Expressions with Function Calls Work**: `2 * add(3)` should return `8.00` (not `12.00`)
+3. **No Stack Panics**: Function calls should not cause index out of bounds errors
+4. **All Existing Tests Pass**: No regressions in basic functionality
+5. **Debug Traces Show Correct Bytecode**: `factorial(n-1)` should generate `Op::Call` instructions
 
 ## Technical Requirements
 
-### Log File Management
-- Default log location: `./.weaver/logs/` directory (created if doesn't exist)
-- Log rotation: 
-  - Rotate when file reaches 5MB
-  - Keep last 10 log files
-  - Naming scheme: `weaver.log` (current), `weaver.log.1` through `weaver.log.10` (historical)
+### Parser/Compiler Fixes
+- Fix precedence parsing to properly handle function calls in binary expressions
+- Ensure `LeftParen` infix rule triggers `fn_call` method correctly
+- Verify `Op::Call` bytecode generation for recursive calls
+- Debug and fix any issues in `parse_precedence` method
 
-### Log Format
-- Timestamp format: ISO 8601 (e.g., `2024-01-15T10:30:45.123Z`)
-- Text format: `<timestamp> - <file>:<line> - <tags> - "<message>"`
-- JSON format option for structured logging
-- Support for arbitrary metadata tags/context values
+### VM Execution Fixes  
+- Fix stack slot calculation for local variables across call frames
+- Ensure call frame setup works correctly for nested function calls
+- Fix any issues in `Op::GetLocal` stack indexing
+- Verify call frame slot offsets are calculated correctly
 
-### Severity Levels
-- DEBUG - Detailed debugging information
-- INFO - General informational messages  
-- WARN - Warning conditions
-- ERROR - Error conditions
+### Testing Requirements
+- Create comprehensive test suite for recursive functions
+- Test various binary expression + function call combinations
+- Test deeply nested function calls
+- Test edge cases like mutual recursion
 
-### API Design
-- Use existing Rust logging crates (evaluate `tracing` for its tagging/span features vs `log` + `env_logger`)
-- Must support structured metadata/tags on log entries
-- Simple macro-based API for developers: `log_debug!`, `log_info!`, `log_warn!`, `log_error!`
-- Support for context values: `log_info!("message", thread_id = 123, module = "parser")`
+## Implementation Approach
 
-### Command Line Interface
-- `--log-level <LEVEL>` - Set minimum log level (DEBUG|INFO|WARN|ERROR), default: INFO
-- `--log-console` - Also output logs to console (in addition to file)
-- `--log-file <PATH>` - Override default log file location
-- `--log-format <FORMAT>` - Choose output format (text|json)
+1. **Fix Parser Precedence First**: Address the core issue where `Op::Call` isn't generated
+2. **Fix Stack Indexing**: Resolve the immediate crash from bad stack access
+3. **Comprehensive Testing**: Verify all function call patterns work
+4. **Performance Verification**: Ensure fixes don't impact performance
 
-### Configuration Defaults
-- Default log level: INFO (when no --log-level specified)
-- Single global log level for entire application (no per-module filtering)
-- Console output uses same format as file output (no special formatting/colors)
+## Test Cases
 
-## Implementation Considerations
+### Basic Recursive Function
+```weave
+fn factorial(n) {
+    if n <= 1 {
+        1
+    } else {
+        n * factorial(n - 1)
+    }
+}
+puts factorial(5)  # Should output 120.00
+```
 
-### Initialization
-- Initialize logging in main function as early as possible
-- Same logging configuration for both REPL and file execution modes
-- Default configuration should work without any setup
+### Binary Expression with Function Call
+```weave
+fn add(x) { x + 1 }
+puts 2 * add(3)    # Should output 8.00
+```
 
-### Migration Strategy
-- Piecemeal replacement of existing print statements
-- Priority on quick completion of migration
-- Maintain functionality during transition
+### Nested Function Calls
+```weave
+fn fibonacci(n) {
+    if n <= 1 {
+        n
+    } else {
+        fibonacci(n-1) + fibonacci(n-2)
+    }
+}
+puts fibonacci(6)  # Should output 8.00
+```
 
-### Performance
-- DEBUG level logs remain in release builds for production debugging
-- No TRACE level (only DEBUG, INFO, WARN, ERROR)
-- Accept reasonable performance overhead for better debugging capability
+### Multiple Call Frames
+```weave
+fn outer(x) {
+    fn inner(y) {
+        y * 2
+    }
+    inner(x) + 1
+}
+puts outer(5)      # Should output 11.00
+```
 
-### Error Handling
-- If log directory cannot be created: crash with error message
-- If disk space runs out: crash with error message
-- Logging system failures should fail fast rather than fail silently
+## Constraints
 
-### Areas for Contextual Logging
-- Compiler phases (scanning, parsing, code generation)
-- VM execution (instruction execution, stack operations)
-- Memory management (allocations, garbage collection)
-- Function calls and returns
-- Error handling and recovery
-
-## Success Metrics
-- All print statements in the codebase have been replaced with appropriate log calls
-- Developers can effectively debug issues using the logging output
-- Log files are manageable in size due to rotation
-- No significant performance degradation in normal operation
+- Maintain backward compatibility with existing Weave syntax
+- Preserve performance characteristics of the interpreter
+- Follow existing code patterns and architecture
+- Ensure all changes are thoroughly tested before integration

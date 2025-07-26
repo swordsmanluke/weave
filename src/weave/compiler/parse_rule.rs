@@ -9,7 +9,7 @@ pub struct ParseRule {
     pub precedence: Precedence,
 }
 
-impl ParseRule {
+impl  ParseRule {
     pub fn new() -> ParseRule {
         ParseRule {
             prefix: None,
@@ -84,7 +84,7 @@ struct ParseRuleBuilder {
     rule: ParseRule
 }
 
-impl ParseRuleBuilder {
+impl  ParseRuleBuilder {
     pub fn new() -> ParseRuleBuilder {
         ParseRuleBuilder {
             rule: ParseRule::new()

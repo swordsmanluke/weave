@@ -1,0 +1,12 @@
+fn make_counter() {
+  count = 0
+  fn counter() {
+    count = count + 1
+    count
+  }
+  counter
+}
+c = make_counter()
+puts c()
+puts c()
+puts c()

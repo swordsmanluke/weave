@@ -1,0 +1,58 @@
+# Task ID: 8
+# Title: Optimize Performance and Memory Usage
+# Status: in-progress
+# Dependencies: 6
+# Priority: medium
+# Description: Minimize clone operations and optimize upvalue resolution for hot-loop performance
+# Details:
+Optimize upvalue implementation to minimize .clone() operations throughout codebase. Use references and borrowing where possible instead of cloning WeaveValue objects. Optimize upvalue resolution to be O(1) after initial capture setup. Implement efficient reference counting cleanup for unused upvalues. Focus on hot-loop performance where closures are called repeatedly. Benchmark against 10K iteration loop requirement.
+
+# Test Strategy:
+Performance benchmarks for hot-loop closure usage, memory usage profiling, verify minimal clone operations, test 10K iteration performance requirement
+
+# Subtasks:
+## 1. Profile and Benchmark Current Performance [in-progress]
+### Dependencies: None
+### Description: Establish baseline performance metrics and identify clone hotspots in upvalue operations
+### Details:
+Create comprehensive benchmarks for upvalue operations including: closure creation with varying upvalue counts (1-10), nested closure scenarios (3-5 levels deep), hot-loop closure calls (10K iterations), and upvalue read/write operations. Use cargo's built-in benchmarking with criterion.rs for accurate measurements. Profile memory allocations and clone operations using tools like valgrind or heaptrack. Document baseline metrics for comparison after optimizations.
+<info added on 2025-07-24T21:25:37.002Z>
+Performance analysis reveals significant performance gap requiring comprehensive profiling beyond clone operations. Current metrics show 4-second execution for 1K iterations versus sub-second target for 10K iterations, indicating 40x performance deficit. Expanded profiling scope must include: VM opcode dispatch overhead analysis comparing closure versus regular function execution paths, detailed closure call mechanics overhead versus standard function calls, upvalue access pattern analysis and lookup algorithm efficiency evaluation, comprehensive memory allocation pattern tracking throughout entire execution lifecycle, hot path identification using advanced profiling tools including perf, cargo flamegraph, and criterion detailed analysis, baseline performance comparison between closure-equivalent and non-closure workloads. Focus shifts from assumed clone bottlenecks to data-driven optimization approach requiring systematic performance characterization across all closure execution components.
+</info added on 2025-07-24T21:25:37.002Z>
+
+## 2. Eliminate Unnecessary Clones in Upvalue Creation [pending]
+### Dependencies: 8.1
+### Description: Replace clone operations with reference-based approaches during upvalue capture and storage
+### Details:
+Audit all WeaveValue::clone() calls in upvalue-related code paths. Replace clones with Rc::clone() for reference counting where appropriate. Modify compiler.rs upvalue emission to avoid cloning when capturing values. Update WeaveUpvalue to store references instead of owned values where possible. Focus on hot paths identified in profiling: GetUpvalue/SetUpvalue opcodes, closure creation in NewClosure opcode, and upvalue resolution during function calls.
+
+## 3. Optimize Upvalue Resolution to O(1) Access [pending]
+### Dependencies: 8.2
+### Description: Implement direct indexing for upvalue access after initial capture setup
+### Details:
+Replace linear search in upvalue resolution with direct array indexing. Store upvalue indices in closure at compile time for O(1) runtime access. Implement upvalue cache in CallFrame to avoid repeated lookups. Use Vec indexing instead of HashMap for upvalue storage. Optimize GetUpvalue and SetUpvalue opcodes to use cached indices. Ensure compiler generates correct upvalue indices during closure emission.
+
+## 4. Implement Efficient Reference Counting Cleanup [pending]
+### Dependencies: 8.3
+### Description: Add smart cleanup mechanism for unused upvalues to prevent memory leaks
+### Details:
+Implement weak reference support for upvalues that don't require strong ownership. Add upvalue garbage collection triggered when Rc strong_count drops to 1. Implement upvalue reuse pool to avoid repeated allocations. Track upvalue lifecycle and clean up closed upvalues when no longer referenced. Use Rc::try_unwrap() to reclaim memory when safe. Ensure cleanup doesn't impact hot-loop performance.
+
+## 5. Validate 10K Iteration Performance Target [pending]
+### Dependencies: 8.4
+### Description: Ensure optimized implementation meets the 10K hot-loop iteration requirement
+### Details:
+Create comprehensive benchmark suite testing 10K iteration loops with various closure patterns: simple counter closures, nested closure calls, upvalue mutations in loops, and multiple closures sharing upvalues. Target sub-millisecond performance for 10K iterations. Compare against baseline metrics from task 8.1. Document performance improvements and any remaining bottlenecks. Create performance regression tests to prevent future degradation.
+
+## 6. Analyze VM Execution Overhead [pending]
+### Dependencies: 8.1
+### Description: Compare closure execution paths vs baseline code paths to identify VM overhead
+### Details:
+Measure and compare: closure function calls vs regular function calls, opcode dispatch efficiency for GetUpvalue/SetUpvalue vs GetLocal/SetLocal, stack frame management overhead for closures, CallFrame creation and destruction costs, VM state management differences between closure and regular execution. Use criterion benchmarks and profiling tools to quantify overhead. Create equivalent workloads (closure vs non-closure) for fair comparison.
+
+## 7. Optimize Upvalue Access Algorithms [pending]
+### Dependencies: 8.1, 8.6
+### Description: Replace linear searches with efficient lookups and optimize upvalue resolution patterns
+### Details:
+Analyze and optimize upvalue lookup algorithms: replace linear searches in upvalue arrays with hash maps or direct indexing where possible, optimize upvalue resolution during compilation to avoid redundant work, implement upvalue caching strategies for frequently accessed variables, analyze Rc<RefCell<>> overhead and explore alternatives like direct stack references when safe, optimize GetUpvalue and SetUpvalue opcodes for hot path performance. Focus on algorithmic improvements rather than just memory management.
+

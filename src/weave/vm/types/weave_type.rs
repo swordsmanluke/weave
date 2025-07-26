@@ -5,8 +5,9 @@ use std::rc::Rc;
 use crate::weave::vm::types::weave_number::WeaveNumber;
 use crate::weave::vm::types::errors::OpResult;
 use crate::weave::vm::types::native_fn::NativeFn;
-use crate::weave::vm::types::weave_fn::WeaveFn;
+use crate::weave::vm::types::weave_fn::{FnClosure, WeaveFn};
 use crate::weave::vm::types::weave_string::WeaveString;
+use crate::weave::vm::types::weave_upvalue::WeaveUpvalue;
 
 // Our types for Weave. Detailed type information can be found in the implementation of each type
 #[derive(Debug, Clone)]
@@ -15,8 +16,9 @@ pub enum WeaveType {
     Boolean(bool),
     Number(WeaveNumber),
     String(WeaveString),
-    Fn(Rc<WeaveFn>),
-    NativeFn(Rc<NativeFn>)
+    Closure(FnClosure),
+    Upvalue(WeaveUpvalue),
+    NativeFn(Rc<NativeFn>),
 }
 
 impl WeaveType {
@@ -81,8 +83,9 @@ impl Display for WeaveType {
             WeaveType::Number(n) => write!(f, "{}", n),
             WeaveType::Boolean(b) => write!(f, "{}", b),
             WeaveType::String(s) => write!(f, "{}", s),
-            WeaveType::Fn(func) => write!(f, "{}", func),
+            WeaveType::Closure(clos) => write!(f, "{}", clos.func),
             WeaveType::NativeFn(func) => write!(f, "{}", func),
+            WeaveType::Upvalue(_) => write!(f, "upval - you shouldn't see this"),
             WeaveType::None => {write!(f, "")}
         }
     }

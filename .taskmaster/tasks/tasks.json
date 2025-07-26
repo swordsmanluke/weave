@@ -3,65 +3,75 @@
     "tasks": [
       {
         "id": 1,
-        "title": "Setup logging dependencies and basic infrastructure",
-        "description": "Add logging crate dependencies to Cargo.toml and create basic logging module structure",
-        "details": "Add `tracing` and `tracing-subscriber` crates to Cargo.toml for structured logging with tagging support. Create src/weave/logging/mod.rs module with basic structure. Add `clap` derive features for command line argument parsing if not already present. Set up the foundation for the logging system that will be used throughout the codebase.",
-        "testStrategy": "Verify dependencies compile successfully. Create basic unit test that initializes logging module without errors. Test that tracing macros are available and functional.",
+        "title": "Refactor Upvalue Data Structures",
+        "description": "Redesign upvalue storage to distinguish between open upvalues (stack references) and closed upvalues (heap-allocated values)",
+        "details": "Modify WeaveUpvalue in src/weave/vm/types/ to support both open and closed states. Open upvalues should reference stack locations while parent function is active. Closed upvalues should be heap-allocated Rc<RefCell<WeaveValue>> when parent scope ends. Add state tracking enum (Open/Closed) and implement conversion methods. Use existing heap structure Vec<Rc<RefCell<WeaveValue>>> for closed upvalues.",
+        "testStrategy": "Unit tests for upvalue state transitions, memory allocation tests, verify open upvalues reference correct stack slots and closed upvalues are properly heap-allocated",
         "priority": "high",
         "dependencies": [],
         "status": "done",
         "subtasks": [
           {
             "id": 1,
-            "title": "Add logging crate dependencies to Cargo.toml",
-            "description": "Add tracing, tracing-subscriber, and tracing-appender crates to Cargo.toml with appropriate version constraints",
+            "title": "Define Upvalue State Enum and Core Types",
+            "description": "Create enum to represent Open/Closed upvalue states and define core data structures",
             "dependencies": [],
-            "details": "Add the following dependencies to Cargo.toml: `tracing = \"0.1\"` for structured logging, `tracing-subscriber = \"0.3\"` for log formatting and output, and `tracing-appender = \"0.2\"` for file rotation. Verify clap has derive features enabled for command line parsing. Use conservative version constraints to ensure compatibility.",
+            "details": "In src/weave/vm/types/mod.rs, create UpvalueState enum with Open(stack_index: usize) and Closed(value: Rc<RefCell<WeaveValue>>) variants. This enum will be the foundation for distinguishing between stack-referenced and heap-allocated upvalues. Ensure the enum is properly integrated with existing WeaveType system.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Unit tests for enum creation, pattern matching on states, and basic state construction"
           },
           {
             "id": 2,
-            "title": "Create basic logging module structure",
-            "description": "Create src/weave/logging/mod.rs with foundational module structure and exports",
+            "title": "Refactor WeaveUpvalue Structure",
+            "description": "Modify WeaveUpvalue to incorporate state tracking and support both open and closed states",
             "dependencies": [
               "1.1"
             ],
-            "details": "Create the logging module directory and mod.rs file. Define the module structure that will house logging initialization, configuration, and utility functions. Export necessary types and functions that will be used by other modules. Follow Rust naming conventions and module organization patterns used elsewhere in the weaver codebase.",
+            "details": "Refactor WeaveUpvalue struct to include the UpvalueState enum. Replace existing value storage with state-based approach. Implement methods like is_open(), is_closed(), get_value(), and set_value() that handle both states appropriately. Ensure WeaveUpvalue can seamlessly transition between states.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Test upvalue creation in both states, verify state query methods work correctly, test value access for both open and closed upvalues"
           },
           {
             "id": 3,
-            "title": "Verify clap derive features configuration",
-            "description": "Ensure clap dependency has derive features enabled for command line argument parsing",
+            "title": "Implement Stack Reference Management for Open Upvalues",
+            "description": "Create mechanism for open upvalues to safely reference stack locations",
             "dependencies": [
-              "1.1"
+              "1.2"
             ],
-            "details": "Check existing clap configuration in Cargo.toml and add derive features if not already present. This will be needed for adding --log-console and other logging-related command line flags. Verify the configuration works by testing that derive macros are available.",
+            "details": "Implement stack reference logic for open upvalues. Add methods to WeaveUpvalue that can safely access stack values through indices. Create validation to ensure stack indices remain valid while parent function is active. Consider adding debug assertions to catch invalid stack access attempts.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Test stack reference validity, verify correct value retrieval from stack positions, test boundary conditions for stack access"
           },
           {
             "id": 4,
-            "title": "Establish logging foundation and verify compilation",
-            "description": "Create basic logging infrastructure foundation and verify all dependencies compile successfully",
+            "title": "Implement Upvalue Closing Mechanism",
+            "description": "Create conversion methods to close open upvalues when parent scope ends",
             "dependencies": [
-              "1.2",
               "1.3"
             ],
-            "details": "Set up the basic foundation for the logging system including placeholder structures and functions that will be expanded in later tasks. Run `cargo check` and `cargo build` to verify all new dependencies compile without errors. Create a basic unit test to ensure the logging module can be imported and initialized without panics.",
+            "details": "Implement close() method on WeaveUpvalue that transitions from Open to Closed state. When closing, capture the current stack value and allocate it on the heap using Rc<RefCell<WeaveValue>>. Ensure the closing process is atomic and handles all edge cases. Add integration with VM to trigger closing when function scope exits.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Test state transition from open to closed, verify heap allocation occurs correctly, test that closed upvalues retain captured values, ensure closing is idempotent"
+          },
+          {
+            "id": 5,
+            "title": "Integrate Upvalue State Management with VM",
+            "description": "Update VM operations to handle new upvalue state system",
+            "dependencies": [
+              "1.4"
+            ],
+            "details": "Modify VM's GetUpvalue and SetUpvalue opcode handlers to work with the new state-based upvalue system. Update closure creation to properly initialize upvalues in open state. Implement scope exit logic that closes all open upvalues referencing the exiting scope. Ensure VM maintains a list of open upvalues for efficient closing.",
+            "status": "done",
+            "testStrategy": "Integration tests with simple closures, verify upvalues start open and close at appropriate times, test nested function scenarios, validate memory management and no leaks"
           }
         ]
       },
       {
         "id": 2,
-        "title": "Implement log file management and rotation",
-        "description": "Create log directory structure, implement file rotation logic, and handle log file creation",
-        "details": "Create `.weaver/logs/` directory if it doesn't exist. Implement rotation logic for 5MB file size limit keeping last 10 files (weaver.log, weaver.log.1 through weaver.log.10). Use tracing-appender for file rotation. Handle directory creation errors and disk space issues with appropriate error messages that crash the application as specified.",
-        "testStrategy": "Unit tests for directory creation, file rotation logic, and error handling. Integration test that writes logs until rotation occurs and verifies correct file naming scheme.",
+        "title": "Implement Upvalue Chain Resolution",
+        "description": "Create mechanism to resolve upvalues through multiple scope levels for nested closures",
+        "details": "Implement upvalue linking system in VM to traverse call stack for nested closure upvalue resolution. Add upvalue chain tracking to CallFrame structure. When resolving upvalue, walk through parent frames to find the correct variable binding. Follow Crafting Interpreters approach adapted for Rust - maintain chain of upvalue references that can traverse multiple nesting levels. Ensure O(1) resolution after initial capture setup.",
+        "testStrategy": "Test nested closure scenarios like outer(1)(2)(3), verify upvalue resolution through multiple scope levels, validate performance with deeply nested closures",
         "priority": "high",
         "dependencies": [
           1
@@ -70,69 +80,65 @@
         "subtasks": [
           {
             "id": 1,
-            "title": "Implement log directory creation with error handling",
-            "description": "Create `.weaver/logs/` directory structure with proper error handling and permissions",
+            "title": "Design Upvalue Chain Data Structure",
+            "description": "Design and implement the core data structures for upvalue chain representation in CallFrame and VM",
             "dependencies": [],
-            "details": "Implement directory creation logic that checks if `.weaver/logs/` exists and creates it if needed. Handle filesystem permissions errors, disk full conditions, and invalid path scenarios. Ensure the directory is created with appropriate permissions for log file writing. Include comprehensive error messages that specify the exact failure reason and crash the application appropriately when directory creation fails.",
+            "details": "Create UpvalueChain struct to represent linked upvalue references. Add upvalue_chain field to CallFrame structure to maintain parent-child relationships. Design UpvalueRef enum to distinguish between open (stack-based) and closed (heap-based) upvalues. Implement Clone and Debug traits for debugging. Ensure structure supports O(1) access after initial resolution and can handle arbitrary nesting depths.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Unit test data structure creation, test Clone implementation, verify Debug output format, test memory layout efficiency"
           },
           {
             "id": 2,
-            "title": "Implement file rotation logic for 5MB limit with 10-file retention",
-            "description": "Create core rotation logic to manage log file size limits and retention policy",
+            "title": "Implement Stack Frame Traversal Logic",
+            "description": "Build the core algorithm to traverse call frames and resolve upvalues through multiple scope levels",
             "dependencies": [
               "2.1"
             ],
-            "details": "Implement rotation logic that monitors current log file size and triggers rotation when it exceeds 5MB. Create naming scheme for rotated files (weaver.log, weaver.log.1, weaver.log.2, etc.). Implement file shifting logic to maintain only the last 10 files, removing older ones. Handle edge cases like existing rotated files on startup and concurrent access scenarios.",
+            "details": "Implement resolve_upvalue method in VM that walks the call stack to find target variables. Create frame traversal iterator that follows parent frame links. Add logic to check each frame's locals before moving to parent scope. Implement caching mechanism to store resolved upvalue locations for O(1) subsequent access. Handle edge cases where upvalue spans more than 3 levels of nesting.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Test traversal with 2, 3, and 5 levels of nesting, verify caching works correctly, test edge case with 10+ levels, benchmark resolution performance"
           },
           {
             "id": 3,
-            "title": "Integrate with tracing-appender for file output",
-            "description": "Configure tracing-appender to work with the custom rotation logic and directory structure",
+            "title": "Integrate Upvalue Chain with Opcode Handlers",
+            "description": "Modify GetUpvalue and SetUpvalue opcodes to use the new upvalue chain resolution mechanism",
             "dependencies": [
-              "2.1",
               "2.2"
             ],
-            "details": "Set up tracing-appender configuration to write logs to the `.weaver/logs/` directory. Integrate the custom rotation logic with tracing-appender's rolling file functionality. Configure appropriate file handles and ensure proper synchronization between the tracing system and file operations. Handle tracing-appender specific error conditions.",
+            "details": "Update GetUpvalue opcode handler to use resolve_upvalue for chain traversal. Modify SetUpvalue to correctly update values through the chain. Ensure opcodes handle both open and closed upvalues transparently. Add proper error handling for invalid upvalue indices. Maintain backward compatibility with existing single-level closure code.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Test get/set operations at various nesting levels, verify error handling for invalid indices, test mixed open/closed upvalue access"
           },
           {
             "id": 4,
-            "title": "Implement disk space monitoring and management",
-            "description": "Add disk space checks and management for log file operations",
+            "title": "Implement Upvalue Capture Optimization",
+            "description": "Optimize upvalue capture to minimize chain traversal overhead and ensure O(1) access after initial resolution",
             "dependencies": [
-              "2.2"
+              "2.3"
             ],
-            "details": "Implement disk space monitoring to detect low disk space conditions before writing logs. Add logic to check available disk space during rotation operations. Implement graceful handling when disk space is insufficient - either by cleaning up older log files more aggressively or by crashing with a clear error message. Include monitoring for the total space consumed by all log files.",
+            "details": "Implement upvalue resolution cache in WeaveFn structure. Add fast-path for already-resolved upvalues using cached references. Implement lazy resolution strategy that defers chain traversal until first access. Ensure cache invalidation when call frames are popped. Add memory pooling for UpvalueRef allocations to reduce allocation overhead.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Benchmark before/after optimization, test cache hit rates, verify correctness with cache disabled, test memory usage patterns"
           },
           {
             "id": 5,
-            "title": "Implement comprehensive error handling with application crashes",
-            "description": "Create robust error handling that crashes the application appropriately for log management failures",
+            "title": "Add Comprehensive Chain Resolution Tests",
+            "description": "Create thorough test suite specifically for upvalue chain resolution across multiple nesting levels",
             "dependencies": [
-              "2.1",
-              "2.2",
-              "2.3",
               "2.4"
             ],
-            "details": "Implement comprehensive error handling for all log file management operations. Define clear error types for different failure scenarios (permissions, disk space, I/O errors, etc.). Ensure that critical log management failures result in application crashes with informative error messages. Create error propagation strategy that allows for proper cleanup before crashing. Include detailed error messages that help users understand and resolve log-related issues.",
+            "details": "Write test cases for the canonical outer(1)(2)(3) nested closure example. Test upvalue resolution with mixed local and upvalue access patterns. Add stress tests with 10+ levels of nesting. Test scenarios where multiple closures share upvalues at different nesting levels. Verify chain resolution works correctly when frames are popped during returns. Add regression tests for existing closure functionality.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Achieve 100% code coverage for chain resolution logic, test all edge cases identified during implementation, verify no performance regression for simple closures"
           }
         ]
       },
       {
         "id": 3,
-        "title": "Design and implement structured logging API",
-        "description": "Create logging macros and API that supports severity levels and structured metadata",
-        "details": "Implement log_debug!, log_info!, log_warn!, log_error! macros using tracing infrastructure. Support structured context: log_info!(\"message\", thread_id = 123, module = \"parser\"). Configure timestamp format as ISO 8601. Design API to be simple and intuitive for developers while leveraging tracing's span and event capabilities for metadata.",
-        "testStrategy": "Unit tests for each macro with various context parameters. Verify structured data is captured correctly. Test that macros work in different modules and contexts throughout the codebase.",
+        "title": "Enhance Compiler Upvalue Tracking",
+        "description": "Extend compiler to track upvalue declarations through multiple scope levels and generate correct upvalue indices",
+        "details": "Modify compiler.rs to track upvalue declarations across multiple scope levels. Enhance scope management to maintain upvalue binding information through nested function definitions. Generate correct upvalue indices for deeply nested closures. Update compile_function to properly emit upvalue capture bytecode for multi-level nesting. Ensure compiler generates correct Closure, GetUpvalue, and SetUpvalue opcodes with proper indices.",
+        "testStrategy": "Compiler tests for nested function compilation, verify correct bytecode generation for multi-level upvalue capture, test upvalue index correctness",
         "priority": "high",
         "dependencies": [
           1
@@ -141,263 +147,651 @@
         "subtasks": [
           {
             "id": 1,
-            "title": "Define logging macro architecture and basic structure",
-            "description": "Create the foundational macro definitions for log_debug!, log_info!, log_warn!, and log_error! using Rust's macro system",
+            "title": "Design Multi-Level Upvalue Tracking Structure",
+            "description": "Create data structures in compiler to track upvalue declarations across multiple scope levels with proper parent-child relationships",
             "dependencies": [],
-            "details": "Define the macro signatures and basic structure in src/weave/logging/macros.rs. Create declarative macros that accept message and optional structured context parameters. Establish the pattern for severity level handling and prepare the foundation for tracing integration. Focus on macro syntax design and parameter handling without full implementation.",
+            "details": "Design and implement enhanced data structures in compiler.rs to track upvalue declarations through arbitrary nesting levels. Create UpvalueInfo struct to store upvalue metadata including source scope level, target scope level, and resolution path. Implement scope hierarchy tracking with parent scope references. Add upvalue registry that maps variable names to their upvalue information across all active scopes. Ensure the design supports efficient lookup and can handle deeply nested function definitions.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Unit tests for upvalue tracking data structures, verify parent-child scope relationships, test upvalue registry operations with mock scope hierarchies"
           },
           {
             "id": 2,
-            "title": "Implement structured context parameter handling",
-            "description": "Build the parameter parsing and structured data handling within the logging macros",
+            "title": "Implement Scope-Level Upvalue Resolution Algorithm",
+            "description": "Create algorithm to resolve upvalue bindings by traversing scope hierarchy from inner to outer scopes",
             "dependencies": [
               "3.1"
             ],
-            "details": "Implement the macro logic to parse and handle structured context parameters like thread_id = 123, module = \"parser\". Create the mechanism to capture key-value pairs and convert them into tracing-compatible structured data. Handle various parameter types and ensure proper serialization for the structured logging format.",
+            "details": "Implement upvalue resolution algorithm in compiler.rs that traverses the scope hierarchy to find variable bindings. When compiling variable access, check current scope first, then traverse parent scopes to determine if variable is an upvalue. Track resolution path through scope levels to generate correct upvalue indices. Handle cases where same variable is captured at multiple nesting levels. Implement caching mechanism to avoid redundant scope traversals. Ensure algorithm correctly distinguishes between local variables, upvalues, and globals.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Test resolution algorithm with various nesting scenarios, verify correct identification of upvalues vs locals, test performance with deeply nested scopes"
           },
           {
             "id": 3,
-            "title": "Configure timestamp formatting and tracing integration",
-            "description": "Integrate the macros with tracing infrastructure and configure ISO 8601 timestamp formatting",
+            "title": "Enhance Compiler Scope Management for Upvalues",
+            "description": "Extend existing scope management to maintain upvalue binding information through nested function definitions",
             "dependencies": [
+              "3.1",
               "3.2"
             ],
-            "details": "Connect the logging macros to the tracing event system, ensuring proper severity level mapping. Configure timestamp formatting to use ISO 8601 standard. Implement the bridge between macro invocations and tracing events/spans, ensuring metadata is properly captured and forwarded to the underlying tracing system.",
+            "details": "Modify scope management in compiler.rs to maintain upvalue binding information across function boundaries. Each scope should track which variables it captures as upvalues and which upvalues it provides to inner scopes. Implement scope enter/exit hooks that properly transfer upvalue information between scope levels. Add methods to query upvalue availability at each scope level. Ensure scope management correctly handles function definition boundaries and maintains upvalue indices consistency.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Test scope transitions with upvalue tracking, verify upvalue information preservation across function boundaries, test nested function compilation scenarios"
           },
           {
             "id": 4,
-            "title": "Validate API design and developer experience",
-            "description": "Test and refine the logging API for intuitive developer usage across different contexts",
+            "title": "Generate Correct Upvalue Bytecode Instructions",
+            "description": "Implement bytecode generation for Closure, GetUpvalue, and SetUpvalue opcodes with proper multi-level indices",
             "dependencies": [
+              "3.2",
               "3.3"
             ],
-            "details": "Perform comprehensive testing of the logging macros in various contexts throughout the codebase. Validate that the API is intuitive and works seamlessly in different modules, functions, and execution contexts. Ensure proper error handling when macros are used incorrectly. Fine-tune the developer experience based on usage patterns and potential edge cases.",
+            "details": "Modify compile_function and related methods to emit correct upvalue capture bytecode for multi-level nesting. Generate Closure instructions with accurate upvalue count and indices based on scope analysis. Implement proper index calculation for GetUpvalue and SetUpvalue opcodes considering the resolution path through scope levels. Ensure bytecode correctly encodes whether upvalue is captured from immediate parent or through multiple levels. Add upvalue index mapping to maintain consistency between compiler and VM representations.",
             "status": "done",
-            "testStrategy": ""
+            "testStrategy": "Verify bytecode generation for nested closures, test upvalue index correctness in generated instructions, validate bytecode sequence for complex nesting patterns"
+          },
+          {
+            "id": 5,
+            "title": "Integrate and Validate Multi-Level Upvalue Compilation",
+            "description": "Complete integration of enhanced upvalue tracking with existing compiler infrastructure and validate with comprehensive tests",
+            "dependencies": [
+              "3.4"
+            ],
+            "details": "Integrate the enhanced upvalue tracking system with existing compiler infrastructure. Update all variable access compilation paths to use the new multi-level upvalue resolution. Ensure backward compatibility with simple closure cases while supporting arbitrary nesting depth. Add debugging output for upvalue resolution to aid in troubleshooting. Create comprehensive test suite covering edge cases like mutual recursion with upvalues, upvalues in loop bodies, and deeply nested lambda expressions. Validate that generated bytecode correctly interfaces with VM upvalue mechanisms.",
+            "status": "done",
+            "testStrategy": "End-to-end tests compiling complex nested closure examples, regression tests for existing closure functionality, performance benchmarks for deeply nested scenarios"
           }
         ]
       },
       {
         "id": 4,
-        "title": "Implement command line argument parsing for logging configuration",
-        "description": "Add CLI arguments for log level, console output, file path, and format options",
-        "details": "Extend existing CLI argument parsing (likely in main.rs) to support: --log-level (DEBUG|INFO|WARN|ERROR, default INFO), --log-console (flag), --log-file <PATH>, --log-format (text|json). Integrate with clap derive macros. Ensure arguments work for both REPL and file execution modes.",
-        "testStrategy": "Unit tests for argument parsing logic. Integration tests that run the application with different flag combinations and verify correct behavior. Test default values when no flags provided.",
-        "priority": "medium",
+        "title": "Fix VM Upvalue Resolution Through Call Stack",
+        "description": "Implement proper upvalue resolution in VM that correctly traces through the call stack for nested closures",
+        "details": "Fix VM upvalue resolution in vm.rs to properly handle nested closures. Implement call stack traversal to find upvalue bindings across multiple function call levels. Modify GetUpvalue and SetUpvalue opcode handlers to use upvalue chain resolution. Ensure upvalue lookups correctly find variables in parent scopes regardless of nesting depth. Handle edge cases where upvalues span multiple call frames.",
+        "testStrategy": "Integration tests with nested closure examples, verify call stack traversal works correctly, test upvalue access across multiple nesting levels",
+        "priority": "high",
         "dependencies": [
-          1
+          2,
+          3
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
-            "title": "Extend existing CLI structure with logging arguments",
-            "description": "Add logging-related command line arguments to the existing CLI argument structure using clap derive macros",
+            "title": "Add Upvalue Chain Tracking to CallFrame",
+            "description": "Enhance CallFrame structure to maintain upvalue chain references for traversal",
             "dependencies": [],
-            "details": "Locate existing CLI argument parsing structure (likely in main.rs or a dedicated CLI module). Add new fields for logging configuration: log_level (enum with DEBUG|INFO|WARN|ERROR, default INFO), log_console (boolean flag), log_file (optional PathBuf), and log_format (enum with text|json options). Use clap derive attributes to define proper help text, default values, and validation rules.",
-            "status": "pending",
-            "testStrategy": ""
+            "details": "Modify the CallFrame struct in vm.rs to include upvalue chain tracking fields. Add a vector or linked structure to store references to upvalues captured by the current function. Include parent frame reference to enable traversal up the call stack. Ensure the structure supports efficient lookup and traversal for nested closure scenarios.",
+            "status": "done",
+            "testStrategy": "Unit tests for CallFrame upvalue storage, verify chain linkage between frames, test parent frame reference integrity"
           },
           {
             "id": 2,
-            "title": "Implement logging-specific flag parsing logic",
-            "description": "Create parsing and validation logic for the new logging command line flags with proper error handling",
+            "title": "Implement Stack Traversal for Upvalue Resolution",
+            "description": "Create mechanism to walk the call stack searching for upvalue bindings",
             "dependencies": [
               "4.1"
             ],
-            "details": "Implement custom parsing logic for log level validation (case-insensitive matching). Add validation for log file path permissions and directory existence. Create proper error messages for invalid combinations (e.g., specifying log file without enabling file logging). Ensure default behavior when no logging flags are provided matches the requirements.",
-            "status": "pending",
-            "testStrategy": ""
+            "details": "Implement a resolve_upvalue method in the VM that traverses the call stack to find upvalue bindings. Start from the current frame and walk up through parent frames using the chain references. Handle cases where upvalues may be in grandparent or higher ancestor frames. Ensure the traversal correctly identifies the frame containing the target upvalue and returns appropriate references.",
+            "status": "done",
+            "testStrategy": "Test upvalue resolution across multiple call frames, verify correct frame identification, test edge cases with deeply nested calls"
           },
           {
             "id": 3,
-            "title": "Integrate logging arguments with clap derive macros",
-            "description": "Properly configure clap derive macros for logging arguments with appropriate attributes and documentation",
+            "title": "Refactor GetUpvalue Opcode Handler",
+            "description": "Modify GetUpvalue implementation to use call stack traversal for resolution",
             "dependencies": [
-              "4.1"
+              "4.2"
             ],
-            "details": "Add proper clap derive attributes: #[arg(long, value_enum)] for log_level, #[arg(long)] for log_console flag, #[arg(long, value_name = \"PATH\")] for log_file, and #[arg(long, value_enum)] for log_format. Include comprehensive help text and examples. Set up proper value names and possible values display for enum arguments.",
-            "status": "pending",
-            "testStrategy": ""
+            "details": "Update the GetUpvalue opcode handler in vm.rs to use the new stack traversal mechanism. Replace direct upvalue access with call to resolve_upvalue method. Handle both open upvalues (stack references) and closed upvalues (heap values) correctly. Ensure the handler properly pushes resolved values onto the VM stack. Add error handling for invalid upvalue indices.",
+            "status": "done",
+            "testStrategy": "Integration tests with nested closures accessing upvalues, verify correct value retrieval, test error cases with invalid indices"
           },
           {
             "id": 4,
-            "title": "Ensure compatibility with REPL and file execution modes",
-            "description": "Verify and adapt argument parsing to work correctly in both interactive REPL and script file execution contexts",
+            "title": "Refactor SetUpvalue Opcode Handler",
+            "description": "Modify SetUpvalue implementation to correctly update upvalues through call stack",
             "dependencies": [
-              "4.2",
-              "4.3"
+              "4.2"
             ],
-            "details": "Test argument parsing in both `cargo run` (REPL mode) and `cargo run script.wv` (file execution mode) contexts. Ensure logging configuration is properly passed to the logging initialization system regardless of execution mode. Handle any differences in argument processing between the two modes and ensure consistent behavior.",
-            "status": "pending",
-            "testStrategy": ""
+            "details": "Update the SetUpvalue opcode handler to use stack traversal for finding the correct upvalue to modify. Ensure mutations properly update the original value whether it's on the stack (open) or heap (closed). Handle reference semantics correctly so all closures sharing the upvalue see updates. Add proper bounds checking and error handling for invalid upvalue operations.",
+            "status": "done",
+            "testStrategy": "Test upvalue mutations across nested closures, verify shared reference behavior, test concurrent access patterns"
+          },
+          {
+            "id": 5,
+            "title": "Handle Multi-Frame Upvalue Edge Cases",
+            "description": "Implement robust handling for complex upvalue scenarios spanning multiple frames",
+            "dependencies": [
+              "4.3",
+              "4.4"
+            ],
+            "details": "Add comprehensive edge case handling for upvalues that span multiple call frames. Handle scenarios where functions return while upvalues are still referenced. Ensure correct behavior when upvalues are accessed after their defining frame has been popped. Implement proper cleanup and reference counting to prevent memory leaks. Add debugging support to trace upvalue resolution paths.",
+            "status": "done",
+            "testStrategy": "Stress tests with deeply nested closures, test function returns with active upvalue references, verify memory cleanup and leak prevention"
           }
         ]
       },
       {
         "id": 5,
-        "title": "Configure logging initialization and output formatting",
-        "description": "Initialize logging system in main function with proper formatters for text and JSON output",
-        "details": "Initialize tracing subscriber in main function as early as possible. Configure text format as '<timestamp> - <file>:<line> - <tags> - \"<message>\"' and JSON format option. Set up conditional console output based on --log-console flag. Ensure same configuration works for both REPL and file execution modes. Handle logging system initialization failures by crashing with clear error messages.",
-        "testStrategy": "Integration tests that verify log output format in both text and JSON modes. Test console vs file-only output. Verify initialization works correctly in both REPL and script execution modes.",
+        "title": "Implement Upvalue Closing Mechanism",
+        "description": "Add functionality to move upvalues from stack to heap when their defining scope ends",
+        "details": "Implement upvalue closing mechanism that moves open upvalues to heap when parent function scope ends. Add close_upvalues method to VM that converts stack-based upvalues to heap-allocated Rc<RefCell<WeaveValue>>. Hook into function return and scope exit points to trigger upvalue closing. Ensure closed upvalues maintain reference semantics for shared access across multiple closures. Use existing heap structure for efficient memory management.",
+        "testStrategy": "Test upvalue persistence after parent function returns, verify heap allocation of closed upvalues, test shared upvalue access across multiple closures",
         "priority": "high",
         "dependencies": [
-          2,
-          3,
+          1,
+          4
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Close Upvalues Method for VM",
+            "description": "Create the core close_upvalues method in VM that handles the transition of upvalues from stack to heap storage",
+            "dependencies": [],
+            "details": "Design and implement close_upvalues(last_slot: usize) method in vm.rs that iterates through open upvalues list, identifies upvalues pointing to stack slots >= last_slot, converts them from stack references to heap-allocated Rc<RefCell<WeaveValue>>, and updates the upvalue's internal state to reflect it's now closed. Method should handle the linked list of open upvalues maintained by the VM.",
+            "status": "done",
+            "testStrategy": "Unit test close_upvalues with various stack configurations, verify upvalues are correctly moved to heap, test that closed upvalues no longer reference stack slots"
+          },
+          {
+            "id": 2,
+            "title": "Implement Stack-to-Heap Value Transfer Logic",
+            "description": "Create the mechanism to safely copy values from stack slots to heap storage when closing upvalues",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "Implement the actual value transfer logic within close_upvalues. When an upvalue needs closing, clone the WeaveValue from its stack slot, wrap it in Rc<RefCell<WeaveValue>> for shared ownership, update the WeaveUpvalue enum to use the Closed variant with heap reference, and ensure the upvalue's location field is updated. Handle edge cases like already-closed upvalues and invalid stack references.",
+            "status": "done",
+            "testStrategy": "Test value preservation during transfer, verify Rc<RefCell> wrapper creation, test that multiple closures can share the same closed upvalue"
+          },
+          {
+            "id": 3,
+            "title": "Hook Upvalue Closing into Function Returns",
+            "description": "Integrate close_upvalues calls at all function return points to ensure upvalues are closed when their scope ends",
+            "dependencies": [
+              "5.1",
+              "5.2"
+            ],
+            "details": "Modify VM's Return opcode handler to call close_upvalues before popping the call frame. Pass the appropriate stack slot index (current frame's base) to close all upvalues in the returning function's scope. Also handle early returns and ensure close_upvalues is called in all code paths that exit a function, including error cases.",
+            "status": "done",
+            "testStrategy": "Test that upvalues are closed on normal returns, early returns, and error returns. Verify no memory leaks or dangling references"
+          },
+          {
+            "id": 4,
+            "title": "Add Scope Exit Closing for Block Scopes",
+            "description": "Implement upvalue closing for block-scoped variables when their defining block ends",
+            "dependencies": [
+              "5.1",
+              "5.2"
+            ],
+            "details": "Add upvalue closing logic for block scope exits (not just function returns). Modify compiler to emit CloseUpvalue instructions at block boundaries where local variables go out of scope. Implement CloseUpvalue opcode in VM that calls close_upvalues with the appropriate stack boundary. Track which blocks contain captured variables to optimize and avoid unnecessary closing operations.",
+            "status": "done",
+            "testStrategy": "Test upvalue closing in nested blocks, loops with captured variables, and conditional blocks. Verify only necessary upvalues are closed"
+          },
+          {
+            "id": 5,
+            "title": "Ensure Reference Semantics for Shared Upvalues",
+            "description": "Validate and test that closed upvalues maintain proper reference semantics when shared between multiple closures",
+            "dependencies": [
+              "5.1",
+              "5.2",
+              "5.3",
+              "5.4"
+            ],
+            "details": "Implement comprehensive testing to ensure closed upvalues work correctly when shared between multiple closures. Verify that modifications through one closure are visible to others sharing the same upvalue. Test scenarios with multiple closures capturing the same variable, closures created at different times sharing upvalues, and nested closures all referencing the same outer variable. Ensure Rc<RefCell> provides the expected shared mutable access.",
+            "status": "done",
+            "testStrategy": "Integration tests with multiple closures modifying shared upvalues, stress tests with many closures sharing upvalues, verification of reference counting and proper cleanup"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Add Mutable Upvalue Support",
+        "description": "Enable modification of captured variables within closures with proper reference sharing",
+        "details": "Implement mutable upvalue support using Rc<RefCell<WeaveValue>> for shared mutable access. Modify SetUpvalue opcode to handle mutable references correctly. Ensure multiple closures capturing the same variable can all modify it and see changes. Implement proper borrowing semantics to prevent runtime panics. Add counter example functionality where closure can increment captured variable state.",
+        "testStrategy": "Test counter closure example, verify multiple closures sharing mutable upvalue, test state persistence across closure calls, validate no borrowing conflicts",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Refactor WeaveUpvalue to Use Rc<RefCell<WeaveValue>>",
+            "description": "Convert WeaveUpvalue struct to use Rc<RefCell<WeaveValue>> for shared mutable access instead of current immutable design",
+            "dependencies": [],
+            "details": "Modify src/weave/vm/types/upvalue.rs to change WeaveUpvalue storage from WeaveValue to Rc<RefCell<WeaveValue>>. Update the struct definition to support mutable references. Ensure all existing upvalue creation points are updated to wrap values in Rc<RefCell>. Maintain compatibility with existing open/closed upvalue states while adding mutability support.",
+            "status": "done",
+            "testStrategy": "Unit tests for Rc<RefCell> creation and access patterns, verify reference counting works correctly, test borrowing semantics to prevent panics"
+          },
+          {
+            "id": 2,
+            "title": "Update SetUpvalue Opcode Handler for Mutable References",
+            "description": "Modify SetUpvalue opcode implementation in VM to handle mutable upvalue references correctly",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "Update the SetUpvalue case in vm.rs to work with Rc<RefCell<WeaveValue>>. Implement proper borrowing using borrow_mut() to modify upvalue contents. Add error handling for borrow conflicts. Ensure the opcode can update both open (stack-based) and closed (heap-based) upvalues with the new mutable reference system.",
+            "status": "done",
+            "testStrategy": "Test SetUpvalue with various value types, verify mutable updates propagate correctly, test concurrent access patterns, validate no runtime borrow panics"
+          },
+          {
+            "id": 3,
+            "title": "Update GetUpvalue Opcode for RefCell Borrowing",
+            "description": "Modify GetUpvalue opcode to properly borrow from RefCell when accessing upvalue contents",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "Update GetUpvalue implementation in vm.rs to use borrow() method when reading upvalue contents. Ensure immutable borrows are properly scoped to prevent conflicts with mutable borrows. Handle both open and closed upvalue access patterns. Clone the inner value when pushing to stack to maintain ownership semantics.",
+            "status": "done",
+            "testStrategy": "Test reading upvalues in various contexts, verify no borrow conflicts with concurrent reads, test interleaving of GetUpvalue and SetUpvalue operations"
+          },
+          {
+            "id": 4,
+            "title": "Implement Shared Mutable Access Across Multiple Closures",
+            "description": "Ensure multiple closures capturing the same variable can all modify it and see each other's changes",
+            "dependencies": [
+              "6.2",
+              "6.3"
+            ],
+            "details": "Modify upvalue capture mechanism to ensure multiple closures share the same Rc<RefCell<WeaveValue>> instance when capturing the same variable. Update compiler's upvalue resolution to reuse existing upvalue references. Implement proper Rc cloning when creating new closures. Ensure changes made by one closure are visible to all other closures sharing the upvalue.",
+            "status": "done",
+            "testStrategy": "Test multiple closures modifying same upvalue, verify changes are visible across all closures, test complex sharing patterns with nested closures"
+          },
+          {
+            "id": 5,
+            "title": "Add Counter Example and Integration Tests",
+            "description": "Implement and test counter closure example demonstrating mutable upvalue functionality",
+            "dependencies": [
+              "6.4"
+            ],
+            "details": "Create a counter function that returns a closure incrementing a captured variable. Add integration tests in vm.rs demonstrating: 1) Basic counter increment functionality, 2) Multiple counter closures sharing state, 3) Nested closures with mutable upvalues, 4) Complex state manipulation patterns. Ensure no borrowing conflicts occur during typical usage patterns.",
+            "status": "done",
+            "testStrategy": "Test counter increment/decrement operations, verify state persistence across calls, test multiple counters with independent state, validate thread-safety of RefCell borrowing"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Add Recursive Closure Detection and Error Handling",
+        "description": "Implement detection and proper error handling for recursive closure attempts",
+        "details": "Add recursive closure detection to compiler and VM. Implement checks during closure creation to detect when a closure tries to capture itself directly or indirectly. Raise VMError with clear message when recursive closure is attempted. Add cycle detection algorithm to traverse upvalue chains and identify circular references. Ensure error is caught at compile time when possible, runtime otherwise.",
+        "testStrategy": "Test direct recursive closure attempts, test indirect recursive closures through multiple levels, verify clear error messages, test performance impact of cycle detection",
+        "priority": "medium",
+        "dependencies": [
           4
         ],
         "status": "pending",
         "subtasks": [
           {
             "id": 1,
-            "title": "Implement early logging initialization in main function",
-            "description": "Add logging system initialization as early as possible in main function before any other operations",
+            "title": "Design Recursive Closure Detection Data Structures",
+            "description": "Create data structures to track closure relationships and detect cycles",
             "dependencies": [],
-            "details": "Initialize tracing subscriber at the very beginning of main() function, before argument parsing or any other logic. Set up global subscriber with error handling that crashes application with clear error message if initialization fails. Ensure initialization happens before REPL or script execution paths diverge.",
+            "details": "Design a closure dependency graph structure in the compiler to track which closures capture which variables. Create a CaptureGraph struct that maps closure IDs to their captured variables and parent closures. Add fields to track closure nesting depth and parent-child relationships. Implement a visitor pattern to traverse the closure graph during compilation. Add necessary fields to Compiler struct to maintain this graph during the compilation phase.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "Unit test graph construction for various closure patterns, verify correct parent-child relationships are tracked, test edge cases with deeply nested closures"
           },
           {
             "id": 2,
-            "title": "Configure text format output with timestamp and structured fields",
-            "description": "Implement text formatter that outputs logs in the specified format with timestamp, file location, and message",
+            "title": "Implement Compile-Time Cycle Detection Algorithm",
+            "description": "Add cycle detection during closure compilation to catch direct recursive captures",
             "dependencies": [
-              "5.1"
+              "7.1"
             ],
-            "details": "Configure tracing-subscriber with custom text format: '<timestamp> - <file>:<line> - <tags> - \"<message>\"'. Use ISO 8601 timestamp format. Include file name and line number from source location. Format structured tags/metadata appropriately. Ensure format is consistent across all log levels.",
+            "details": "Implement a depth-first search (DFS) based cycle detection algorithm in the compiler. When a closure is being compiled and captures a variable, check if that variable refers to the closure itself or any of its ancestors. Use the CaptureGraph to traverse the dependency chain. Mark visited nodes to detect cycles. If a cycle is detected, generate a compile error with clear message indicating the recursive closure attempt. Handle cases where the recursion happens through variable assignments.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "Test direct self-capture (let f = fn() { f() }), test indirect cycles through multiple closures, verify compile errors are generated with helpful messages"
           },
           {
             "id": 3,
-            "title": "Implement JSON format output option",
-            "description": "Add JSON formatting capability for structured log output when requested",
+            "title": "Add Runtime Upvalue Chain Validation",
+            "description": "Implement runtime checks for indirect recursive closure creation through upvalues",
             "dependencies": [
-              "5.1"
+              "7.1"
             ],
-            "details": "Configure alternative JSON formatter using tracing-subscriber's JSON layer. Include timestamp, level, message, file location, line number, and all structured metadata as JSON fields. Ensure JSON output is valid and parseable. Make format selection conditional based on CLI arguments.",
+            "details": "Add validation logic in the VM's closure creation path to detect runtime recursive captures that couldn't be caught at compile time. When creating a closure with upvalues, traverse the upvalue chain to ensure no circular references exist. Implement this in the OP_CLOSURE opcode handler. Check each upvalue to see if it eventually points back to the closure being created. Use a HashSet to track visited upvalues during traversal. Raise a VMError with descriptive message if cycle detected.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "Test runtime recursive closure creation through variable reassignment, test deeply nested upvalue chains, verify performance impact is minimal for non-recursive cases"
           },
           {
             "id": 4,
-            "title": "Setup conditional console output based on CLI flags",
-            "description": "Implement logic to conditionally enable console logging output based on --log-console flag",
+            "title": "Create Specialized Error Types and Messages",
+            "description": "Design clear error types and messages for recursive closure scenarios",
             "dependencies": [
-              "5.2",
-              "5.3"
+              "7.2",
+              "7.3"
             ],
-            "details": "Configure tracing subscriber to output to console only when --log-console flag is provided. Set up conditional layer activation based on parsed CLI arguments. Ensure console output uses the same format as file output (text or JSON). Handle case where both console and file outputs are disabled.",
+            "details": "Create new error variants in CompilerError and VMError enums specifically for recursive closures. Add RecursiveClosure variant with fields for closure name, recursion path, and line number. Implement Display trait to generate user-friendly error messages that explain the recursion problem and suggest fixes. Include the chain of closures involved in the cycle. Format messages to show: 'Recursive closure detected: closure 'f' captures itself through chain: f -> g -> h -> f'. Add source location information when available.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "Test error message clarity for various recursion patterns, verify line numbers are accurate, test that error messages help users identify the problem"
           },
           {
             "id": 5,
-            "title": "Implement robust error handling for initialization failures",
-            "description": "Add comprehensive error handling for all logging initialization scenarios with clear crash messages",
+            "title": "Optimize Cycle Detection Performance",
+            "description": "Optimize the cycle detection to minimize overhead for normal closure creation",
             "dependencies": [
-              "5.1",
-              "5.4"
+              "7.2",
+              "7.3",
+              "7.4"
             ],
-            "details": "Wrap all logging initialization steps in proper error handling. Provide clear, actionable error messages for common failure scenarios (permission issues, disk space, invalid configuration). Crash application immediately with descriptive messages rather than continuing with broken logging. Test error paths and ensure graceful failure behavior.",
+            "details": "Profile the cycle detection implementation and optimize hot paths. Implement lazy checking that only performs full cycle detection when certain patterns are detected (e.g., closure capturing variables from same scope). Add caching to avoid redundant checks for the same closure patterns. Use bit flags to quickly identify closures that need cycle checking. Implement depth limits to prevent excessive traversal in pathological cases. Ensure the common case of non-recursive closures has minimal overhead. Consider using Tarjan's algorithm for efficient strongly connected component detection if needed.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "Benchmark closure creation with and without cycle detection, test performance with deeply nested non-recursive closures, verify optimization doesn't miss edge cases"
           }
         ]
       },
       {
-        "id": 6,
-        "title": "Replace print statements in compiler module",
-        "description": "Systematically replace existing print statements in scanner, parser, and compiler with appropriate log calls",
-        "details": "Go through src/weave/compiler/ modules (scanner.rs, parser.rs, compiler.rs) and replace print statements with appropriate log levels. Use DEBUG for detailed debugging, INFO for general progress, WARN for recoverable issues, ERROR for failures. Add contextual information like token types, AST node details, bytecode generation progress using structured logging API.",
-        "testStrategy": "Run existing compiler tests and verify they still pass. Manual testing of compilation with different log levels to ensure appropriate messages appear. Verify no print statements remain in compiler modules.",
+        "id": 8,
+        "title": "Optimize Performance and Memory Usage",
+        "description": "Minimize clone operations and optimize upvalue resolution for hot-loop performance",
+        "details": "Optimize upvalue implementation to minimize .clone() operations throughout codebase. Use references and borrowing where possible instead of cloning WeaveValue objects. Optimize upvalue resolution to be O(1) after initial capture setup. Implement efficient reference counting cleanup for unused upvalues. Focus on hot-loop performance where closures are called repeatedly. Benchmark against 10K iteration loop requirement.",
+        "testStrategy": "Performance benchmarks for hot-loop closure usage, memory usage profiling, verify minimal clone operations, test 10K iteration performance requirement",
         "priority": "medium",
         "dependencies": [
-          5
+          6
+        ],
+        "status": "in-progress",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Profile and Benchmark Current Performance",
+            "description": "Establish baseline performance metrics and identify clone hotspots in upvalue operations",
+            "dependencies": [],
+            "details": "Create comprehensive benchmarks for upvalue operations including: closure creation with varying upvalue counts (1-10), nested closure scenarios (3-5 levels deep), hot-loop closure calls (10K iterations), and upvalue read/write operations. Use cargo's built-in benchmarking with criterion.rs for accurate measurements. Profile memory allocations and clone operations using tools like valgrind or heaptrack. Document baseline metrics for comparison after optimizations.\n<info added on 2025-07-24T21:25:37.002Z>\nPerformance analysis reveals significant performance gap requiring comprehensive profiling beyond clone operations. Current metrics show 4-second execution for 1K iterations versus sub-second target for 10K iterations, indicating 40x performance deficit. Expanded profiling scope must include: VM opcode dispatch overhead analysis comparing closure versus regular function execution paths, detailed closure call mechanics overhead versus standard function calls, upvalue access pattern analysis and lookup algorithm efficiency evaluation, comprehensive memory allocation pattern tracking throughout entire execution lifecycle, hot path identification using advanced profiling tools including perf, cargo flamegraph, and criterion detailed analysis, baseline performance comparison between closure-equivalent and non-closure workloads. Focus shifts from assumed clone bottlenecks to data-driven optimization approach requiring systematic performance characterization across all closure execution components.\n</info added on 2025-07-24T21:25:37.002Z>",
+            "status": "in-progress",
+            "testStrategy": "Create benchmark suite in benches/ directory, measure closure creation time, upvalue access time, memory allocation counts, and clone operation frequency. Verify benchmarks run consistently across multiple iterations."
+          },
+          {
+            "id": 2,
+            "title": "Eliminate Unnecessary Clones in Upvalue Creation",
+            "description": "Replace clone operations with reference-based approaches during upvalue capture and storage",
+            "dependencies": [
+              "8.1"
+            ],
+            "details": "Audit all WeaveValue::clone() calls in upvalue-related code paths. Replace clones with Rc::clone() for reference counting where appropriate. Modify compiler.rs upvalue emission to avoid cloning when capturing values. Update WeaveUpvalue to store references instead of owned values where possible. Focus on hot paths identified in profiling: GetUpvalue/SetUpvalue opcodes, closure creation in NewClosure opcode, and upvalue resolution during function calls.",
+            "status": "pending",
+            "testStrategy": "Unit tests verifying reference semantics are maintained, benchmark showing reduced clone count, memory usage tests confirming no leaks, stress test with 1000+ closures sharing upvalues"
+          },
+          {
+            "id": 3,
+            "title": "Optimize Upvalue Resolution to O(1) Access",
+            "description": "Implement direct indexing for upvalue access after initial capture setup",
+            "dependencies": [
+              "8.2"
+            ],
+            "details": "Replace linear search in upvalue resolution with direct array indexing. Store upvalue indices in closure at compile time for O(1) runtime access. Implement upvalue cache in CallFrame to avoid repeated lookups. Use Vec indexing instead of HashMap for upvalue storage. Optimize GetUpvalue and SetUpvalue opcodes to use cached indices. Ensure compiler generates correct upvalue indices during closure emission.",
+            "status": "pending",
+            "testStrategy": "Benchmark upvalue access in tight loops, verify O(1) access time regardless of upvalue count, test deeply nested closures maintain fast access, validate correctness with complex closure scenarios"
+          },
+          {
+            "id": 4,
+            "title": "Implement Efficient Reference Counting Cleanup",
+            "description": "Add smart cleanup mechanism for unused upvalues to prevent memory leaks",
+            "dependencies": [
+              "8.3"
+            ],
+            "details": "Implement weak reference support for upvalues that don't require strong ownership. Add upvalue garbage collection triggered when Rc strong_count drops to 1. Implement upvalue reuse pool to avoid repeated allocations. Track upvalue lifecycle and clean up closed upvalues when no longer referenced. Use Rc::try_unwrap() to reclaim memory when safe. Ensure cleanup doesn't impact hot-loop performance.",
+            "status": "pending",
+            "testStrategy": "Memory leak tests with valgrind, verify upvalue cleanup after scope exit, test weak references don't break closure semantics, benchmark cleanup overhead in hot loops"
+          },
+          {
+            "id": 5,
+            "title": "Validate 10K Iteration Performance Target",
+            "description": "Ensure optimized implementation meets the 10K hot-loop iteration requirement",
+            "dependencies": [
+              "8.4"
+            ],
+            "details": "Create comprehensive benchmark suite testing 10K iteration loops with various closure patterns: simple counter closures, nested closure calls, upvalue mutations in loops, and multiple closures sharing upvalues. Target sub-millisecond performance for 10K iterations. Compare against baseline metrics from task 8.1. Document performance improvements and any remaining bottlenecks. Create performance regression tests to prevent future degradation.\n<info added on 2025-07-24T21:26:41.562Z>\nPerformance validation targets updated to address critical 40x performance gap. Current baseline: 4 seconds for 1K iterations. Target achievement: sub-second execution for 10K iterations, representing minimum 40x performance improvement requirement.\n\nExplicit milestone targets established:\n- 1K iterations: <100ms execution time\n- 10K iterations: <1s execution time  \n- Memory efficiency: zero leaks under stress testing\n- Closure overhead: reasonable compared to baseline non-closure performance\n\nEnhanced regression prevention measures:\n- CI performance benchmarks integrated into build pipeline\n- Memory efficiency validation beyond execution speed metrics\n- Automated performance regression detection with failure thresholds\n- Baseline non-closure performance comparison to validate closure overhead remains acceptable\n- Stress testing protocols for memory leak detection under extended execution\n\nBenchmark suite expanded to include baseline performance comparisons ensuring closure implementation overhead stays within reasonable bounds relative to non-closure equivalent operations.\n</info added on 2025-07-24T21:26:41.562Z>",
+            "status": "pending",
+            "testStrategy": "Automated performance benchmarks with criterion, regression tests ensuring performance doesn't degrade, stress tests with 100K+ iterations, profile final implementation to verify no remaining hotspots"
+          },
+          {
+            "id": 6,
+            "title": "Analyze VM Execution Overhead",
+            "description": "Compare closure execution paths vs baseline code paths to identify VM overhead",
+            "details": "Measure and compare: closure function calls vs regular function calls, opcode dispatch efficiency for GetUpvalue/SetUpvalue vs GetLocal/SetLocal, stack frame management overhead for closures, CallFrame creation and destruction costs, VM state management differences between closure and regular execution. Use criterion benchmarks and profiling tools to quantify overhead. Create equivalent workloads (closure vs non-closure) for fair comparison.",
+            "status": "pending",
+            "dependencies": [
+              "8.1"
+            ],
+            "parentTaskId": 8
+          },
+          {
+            "id": 7,
+            "title": "Optimize Upvalue Access Algorithms",
+            "description": "Replace linear searches with efficient lookups and optimize upvalue resolution patterns",
+            "details": "Analyze and optimize upvalue lookup algorithms: replace linear searches in upvalue arrays with hash maps or direct indexing where possible, optimize upvalue resolution during compilation to avoid redundant work, implement upvalue caching strategies for frequently accessed variables, analyze Rc<RefCell<>> overhead and explore alternatives like direct stack references when safe, optimize GetUpvalue and SetUpvalue opcodes for hot path performance. Focus on algorithmic improvements rather than just memory management.",
+            "status": "pending",
+            "dependencies": [
+              "8.1",
+              "8.6"
+            ],
+            "parentTaskId": 8
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Implement Comprehensive Test Suite",
+        "description": "Create complete test coverage for nested closures including edge cases and integration scenarios",
+        "details": "Implement comprehensive test suite covering all closure scenarios. Add functional tests for basic nested closures (outer(1)(2)(3) example), function-scoped variable capture, closures capturing other closures, and closures created in loops. Add edge case tests for maximum nesting depth, multiple closures sharing upvalues. Add integration tests for closures with built-in functions, REPL interaction, and data structure storage. Ensure all existing single-level closure tests continue to pass.",
+        "testStrategy": "Functional test coverage >95%, edge case validation, integration test suite, regression testing for existing functionality, performance validation",
+        "priority": "medium",
+        "dependencies": [
+          7,
+          8
         ],
         "status": "pending",
         "subtasks": [
           {
             "id": 1,
-            "title": "Scan and inventory existing print statements in compiler modules",
-            "description": "Systematically identify all print statements, println! macros, and debug output in scanner.rs, parser.rs, and compiler.rs",
+            "title": "Create Basic Nested Closure Test Suite",
+            "description": "Implement functional tests for fundamental nested closure patterns including multi-level function returns",
             "dependencies": [],
-            "details": "Use grep/ripgrep to search for print!, println!, dbg!, eprintln! and similar output statements across src/weave/compiler/ directory. Document each occurrence with file location, line number, and context (what information is being printed). Create inventory list categorizing by purpose: debug info, error messages, progress indicators, or diagnostic output. This will inform appropriate log level selection in subsequent subtasks.",
+            "details": "Create test module for basic nested closure functionality. Implement tests for outer(1)(2)(3) pattern, function-scoped variable capture across multiple levels, and verify proper upvalue resolution through nested function calls. Test patterns like make_counter with nested incrementers, nested function factories, and closures that return closures capturing parent scope variables.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "Use assertion-based tests to verify correct values are captured and maintained across nested closure calls. Test both immediate and deferred execution patterns."
           },
           {
             "id": 2,
-            "title": "Replace print statements in scanner.rs with structured logging",
-            "description": "Convert all print statements in the scanner module to appropriate log calls with contextual information",
+            "title": "Implement Edge Case and Boundary Tests",
+            "description": "Create tests for closure edge cases including maximum nesting depth and shared upvalue scenarios",
             "dependencies": [
-              "6.1"
+              "9.1"
             ],
-            "details": "Replace print statements in scanner.rs with tracing macros (debug!, info!, warn!, error!). Add context like current token, position in source, lexeme values, and scanner state. Use DEBUG for token-by-token scanning details, INFO for scan completion, WARN for unusual characters or recovery, ERROR for scan failures. Ensure no functionality changes - only output mechanism changes.",
+            "details": "Develop comprehensive edge case test suite covering maximum closure nesting depth limits, multiple closures sharing the same upvalues, closures capturing other closures as values, and closures created within loops with proper variable capture. Test scenarios where upvalues are modified by multiple closures simultaneously and verify reference semantics are maintained.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "Use stress tests for nesting limits, concurrent modification tests for shared upvalues, and loop iteration tests to verify each closure captures correct loop variable values."
           },
           {
             "id": 3,
-            "title": "Replace print statements in parser.rs with structured logging",
-            "description": "Convert all print statements in the parser module to appropriate log calls with AST context",
+            "title": "Build Integration Test Suite with Built-ins",
+            "description": "Create integration tests for closures interacting with native functions and system features",
             "dependencies": [
-              "6.1"
+              "9.1"
             ],
-            "details": "Replace print statements in parser.rs with tracing macros. Add context like current rule being parsed, AST node types, precedence levels, and parse tree structure. Use DEBUG for detailed parsing steps, INFO for successful parse completion, WARN for syntax recovery, ERROR for parse errors. Include structured fields like node_type, token_value, and parse_depth for better log analysis.",
+            "details": "Implement integration tests for closures used with built-in functions like puts(), closures stored in data structures (once implemented), and closures passed as arguments to native functions. Test closure serialization/deserialization if applicable, and verify garbage collection properly handles closure references.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "Integration tests should verify end-to-end functionality including proper memory management and interaction with VM internals."
           },
           {
             "id": 4,
-            "title": "Replace print statements in compiler.rs with bytecode generation context",
-            "description": "Convert all print statements in the compiler module to structured logging with bytecode and scope information",
+            "title": "Develop REPL-Specific Closure Tests",
+            "description": "Create test suite for closure behavior in interactive REPL environment",
             "dependencies": [
-              "6.1"
+              "9.1",
+              "9.3"
             ],
-            "details": "Replace print statements in compiler.rs with tracing macros. Add context like bytecode instructions being generated, scope depth, variable declarations, and compilation progress. Use DEBUG for instruction-by-instruction generation, INFO for compilation phases, WARN for scope resolution issues, ERROR for compilation failures. Include structured fields like instruction_type, scope_level, and variable_name for comprehensive debugging.",
+            "details": "Implement tests specifically for REPL closure interactions including multi-line closure definitions, closure persistence across REPL commands, proper error handling for malformed closures in REPL, and verification that closures defined in REPL can access previously defined variables. Test command history interaction with closure definitions.",
             "status": "pending",
-            "testStrategy": ""
+            "testStrategy": "Simulate REPL sessions programmatically, verify state persistence, and test error recovery scenarios specific to interactive use."
+          },
+          {
+            "id": 5,
+            "title": "Create Regression Test Suite and Performance Benchmarks",
+            "description": "Ensure all existing closure tests pass and establish performance baselines for nested closures",
+            "dependencies": [
+              "9.1",
+              "9.2",
+              "9.3",
+              "9.4"
+            ],
+            "details": "Run all existing single-level closure tests to ensure no regressions. Create performance benchmarks for deeply nested closures, upvalue access times, and closure creation overhead. Establish baseline metrics for closure memory usage. Document any breaking changes and ensure backward compatibility where possible. Generate test coverage report targeting >95% coverage for closure-related code.",
+            "status": "pending",
+            "testStrategy": "Use automated regression testing, performance profiling with criterion or similar benchmarking framework, and coverage analysis tools to ensure comprehensive validation."
           }
         ]
       },
       {
-        "id": 7,
-        "title": "Replace print statements in VM module",
-        "description": "Replace existing print statements in VM execution, stack operations, and memory management with structured log calls",
-        "details": "Replace print statements in src/weave/vm/ modules with appropriate logging calls. Focus on vm.rs for instruction execution, stack operations, function calls/returns. Add context like instruction pointer, stack depth, current instruction, variable values. Use DEBUG for detailed execution flow, INFO for major operations, WARN for unusual conditions, ERROR for VM failures.",
-        "testStrategy": "Run existing VM tests with different log levels. Verify that VM functionality remains unchanged while providing useful logging output. Test that performance impact is acceptable during normal operation.",
-        "priority": "medium",
+        "id": 10,
+        "title": "Documentation and REPL Integration",
+        "description": "Update documentation and ensure proper REPL support for nested closures",
+        "details": "Update project documentation to reflect new nested closure capabilities. Ensure REPL properly handles closure display (showing identifier when not invoked, evaluating when called). Update language examples and usage documentation. Verify closure integration with built-in functions like puts(). Test REPL interaction patterns with nested closures. Update any existing code comments and inline documentation to reflect new implementation details.",
+        "testStrategy": "REPL interaction tests, documentation accuracy review, integration with built-in functions validation, example code verification",
+        "priority": "low",
         "dependencies": [
-          5
+          9
         ],
-        "status": "done",
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Update Language Documentation for Nested Closures",
+            "description": "Revise all language documentation to include nested closure syntax, behavior, and usage patterns",
+            "dependencies": [],
+            "details": "Update README.md with nested closure examples and syntax. Add comprehensive closure documentation section explaining single and nested closure behavior. Document closure capture semantics, including how variables are captured from multiple scope levels. Include practical examples demonstrating nested closure use cases like currying, partial application, and factory functions. Update any existing function documentation to clarify closure support.",
+            "status": "pending",
+            "testStrategy": "Manual review of documentation accuracy, verify all code examples compile and run correctly, ensure documentation matches actual implementation behavior"
+          },
+          {
+            "id": 2,
+            "title": "Implement REPL Closure Display Logic",
+            "description": "Enhance REPL to properly display closure identifiers when not invoked and evaluate when called",
+            "dependencies": [],
+            "details": "Modify REPL evaluation logic in main.rs to detect closure values and display them as '<closure>' or similar identifier when not invoked. Ensure proper differentiation between closure reference and closure invocation (with parentheses). Update REPL output formatting to handle nested closure chains gracefully. Implement consistent display format for partially applied closures. Add REPL-specific handling for closure introspection if needed.",
+            "status": "pending",
+            "testStrategy": "Interactive REPL testing with various closure scenarios, verify display consistency, test partial application display, validate invocation behavior"
+          },
+          {
+            "id": 3,
+            "title": "Create Comprehensive Closure Examples",
+            "description": "Develop example Weaver programs demonstrating nested closure capabilities and patterns",
+            "dependencies": [
+              "10.1"
+            ],
+            "details": "Create examples/ directory with closure demonstration programs. Include basic closure examples (counter, accumulator). Add nested closure examples showing multiple levels of capture. Demonstrate practical patterns: currying, partial application, factory functions, callbacks. Create examples showing closure interaction with built-in functions. Add comments explaining closure behavior in each example.",
+            "status": "pending",
+            "testStrategy": "Execute all example programs to verify correctness, ensure examples cover documented features, validate output matches expectations"
+          },
+          {
+            "id": 4,
+            "title": "Test and Document Built-in Function Integration",
+            "description": "Verify and document how closures interact with built-in functions like puts()",
+            "dependencies": [
+              "10.2"
+            ],
+            "details": "Test closure behavior when passed to built-in functions like puts(). Document any special handling or limitations when closures interact with native functions. Verify closure invocation works correctly within native function contexts. Update built-in function documentation to clarify closure parameter support. Add test cases for edge cases like passing partially applied closures to built-ins.",
+            "status": "pending",
+            "testStrategy": "Integration tests for closure-builtin interactions, verify puts() correctly displays closure identifiers, test native function callbacks with closures"
+          },
+          {
+            "id": 5,
+            "title": "Update Code Comments and Implementation Documentation",
+            "description": "Revise inline code comments and implementation notes to reflect nested closure support",
+            "dependencies": [
+              "10.1",
+              "10.3",
+              "10.4"
+            ],
+            "details": "Update comments in compiler.rs explaining nested closure compilation strategy. Document upvalue resolution mechanism in vm.rs with clear examples. Add comments to closure-related opcodes explaining their behavior with nested closures. Update type system documentation in types/ to clarify closure representation. Ensure all TODO comments related to closures are addressed or updated. Add architectural notes explaining the closure implementation approach.",
+            "status": "pending",
+            "testStrategy": "Code review to ensure comment accuracy, verify comments match implementation, check for outdated closure-related TODOs"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Fix failing unit test: test_compile_local_variables",
+        "description": "Investigate and fix the test_compile_local_variables unit test that is failing with assertion error '1 != 17' in compiler.rs:658, addressing local variable compilation/scoping issues introduced during closure implementation.",
+        "details": "Debug the test_compile_local_variables test failure by examining the assertion at compiler.rs:658 to understand why the expected value (1) differs from actual (17). Review recent closure implementation changes in tasks 1-6 that may have affected local variable scoping logic. Check if the compiler's local variable tracking, scope management, or bytecode generation for non-closure scenarios was inadvertently modified. Examine the test case to understand what specific local variable compilation behavior is being validated. Restore proper local variable compilation while preserving closure functionality. Focus on ensuring local variable indices, scope resolution, and bytecode generation work correctly for simple variable declarations and usage that don't involve closures.",
+        "testStrategy": "Run the specific failing test in isolation to reproduce the error. Add debug prints around compiler.rs:658 to understand the assertion values. Create minimal test cases for basic local variable scenarios to isolate the issue. Verify all existing local variable tests pass after the fix. Ensure closure-related tests (from tasks 1-6) continue to pass, confirming the fix doesn't break closure functionality. Add regression tests if the root cause reveals gaps in test coverage.",
+        "status": "pending",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "priority": "high",
         "subtasks": []
       },
       {
-        "id": 8,
-        "title": "Complete migration and add contextual logging to remaining modules",
-        "description": "Finish replacing all remaining print statements and add contextual logging to error handling, REPL, and other modules",
-        "details": "Complete migration of any remaining print statements in main.rs, REPL functionality, error handling, and type system modules. Add contextual logging for memory management, garbage collection events, and native function calls. Ensure all areas identified in PRD have appropriate logging: function calls/returns, error handling/recovery, memory allocations. Verify no print statements remain anywhere in codebase.",
-        "testStrategy": "Comprehensive search for remaining print statements in codebase. Integration tests that exercise all major code paths while verifying appropriate log output. Performance testing to ensure DEBUG level logging doesn't significantly impact execution speed.",
-        "priority": "medium",
+        "id": 12,
+        "title": "Fix failing unit test: test_nested_scopes",
+        "description": "Debug and fix the test_nested_scopes unit test that is failing with 'index out of bounds' panic in scope.rs:75 during scope stack management operations.",
+        "details": "Investigate the panic occurring at scope.rs:75 where an index out of bounds error suggests the scope stack is empty when trying to access an element. The test involves nested scopes with variable shadowing ({ x = 2; { x = 1; x = x + 3 } puts x; }) which should result in the outer x (value 2) being printed. Debug the scope stack management in the compiler's scope.rs module to ensure proper push/pop operations for nested block scopes. Check if recent closure implementation changes affected the scope stack initialization or management. Verify that scope_depth tracking correctly handles nested blocks and that local variable resolution works properly in shadowing scenarios. Examine if the compiler properly maintains separate scopes for nested blocks and correctly resolves variable names to the appropriate scope level. Add bounds checking and proper error handling for scope stack operations.",
+        "testStrategy": "Run the failing test in isolation with debug output to reproduce the exact panic. Add debug prints to scope.rs around line 75 to track scope stack state during nested scope operations. Create minimal test cases for basic nested scopes without closures to isolate the issue. Verify the scope stack correctly pushes new scopes on block entry and pops on block exit. Test variable shadowing scenarios to ensure inner variables don't affect outer scope resolution. Confirm that after the fix, the test correctly prints the outer x value (2) and all existing scope-related tests continue to pass.",
+        "status": "pending",
         "dependencies": [
-          6,
-          7
+          1,
+          2,
+          3
         ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Fix parser precedence bug preventing function calls in binary expressions from generating Op::Call instructions",
+        "description": "Debug and fix the parser precedence issue where function calls within binary expressions fail to generate proper Op::Call bytecode instructions, causing runtime execution failures.",
+        "details": "Investigate the parser's precedence handling in parser.rs to identify why function calls embedded in binary expressions (e.g., `foo() + bar()` or `x + func(y)`) are not generating Op::Call instructions. The issue likely stems from precedence rules incorrectly parsing function calls as identifiers when they appear as operands in binary expressions. Review the Pratt parser implementation, specifically the precedence table and how function call parsing interacts with binary operator parsing. Check if the issue occurs during the primary expression parsing phase or during binary expression resolution. Examine the parse_call method and ensure it's properly invoked when a function call is encountered as part of a larger expression. Debug by adding logging to track when Op::Call instructions should be emitted versus when they're being skipped. Verify that function calls work correctly in isolation but fail within binary expressions. Fix the precedence rules or parsing logic to ensure function calls are properly recognized and compiled to Op::Call instructions regardless of their position in binary expressions.",
+        "testStrategy": "Create test cases for function calls in various binary expression contexts: `func() + 5`, `10 * func(x)`, `func1() + func2()`, and nested scenarios like `(func() + 5) * func2()`. Add unit tests that compile these expressions and verify Op::Call instructions are present in the generated bytecode. Test both with existing functions and lambdas. Create integration tests that execute these expressions and verify correct runtime behavior. Add debug output to track bytecode generation and ensure Op::Call instructions appear at expected positions. Verify existing function call tests continue to pass.",
         "status": "done",
+        "dependencies": [
+          1,
+          2,
+          3
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Fix stack indexing bug in Op::GetLocal causing index out of bounds panics",
+        "description": "Debug and fix the stack indexing calculation in Op::GetLocal instruction where frame.slot + relative_slot produces invalid stack indices, causing runtime panics when functions have multiple call frames.",
+        "details": "Investigate the stack indexing logic in vm.rs for the Op::GetLocal instruction execution. The current calculation `frame.slot + relative_slot` is producing indices that exceed the stack bounds when multiple function call frames are active. This suggests the relative slot calculation or frame slot base address is incorrect for nested function calls. Examine how call frames are managed and how local variable slots are calculated relative to the current frame's base. Review the compiler's local variable slot assignment in compiler.rs to ensure consistency with VM expectations. Check if recent closure implementation changes affected the frame slot calculations. The fix likely involves correcting either the frame.slot base calculation or the relative_slot computation to ensure valid stack indices. Add bounds checking and better error handling for stack access operations to prevent panics and provide meaningful error messages.",
+        "testStrategy": "Create test cases that reproduce the index out of bounds panic with multiple nested function calls. Add unit tests for stack indexing calculations with various call frame depths. Test scenarios with local variables in nested functions, recursive calls, and closure calls that trigger multiple frames. Add debug assertions to verify stack indices are within bounds before access. Create integration tests that combine local variable access with the fixed closure functionality from previous tasks. Verify that all existing local variable tests continue to pass after the fix.",
+        "status": "done",
+        "dependencies": [
+          1,
+          2,
+          3,
+          5
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "Create comprehensive test suite for recursive function calls",
+        "description": "Develop a complete test suite covering recursive function calls including factorial, fibonacci, binary expressions with function calls, and nested function calls to verify all recent bug fixes and implementations work correctly.",
+        "details": "Create comprehensive test suite in src/weave/vm/vm.rs covering multiple recursive function call scenarios. Implement test_recursive_factorial() testing basic factorial recursion (5! = 120), test_recursive_fibonacci() for fibonacci sequence calculation, test_binary_expressions_with_function_calls() verifying function calls work correctly within binary operations (factorial(3) + fibonacci(4)), and test_nested_recursive_calls() for deeply nested scenarios. Each test should compile Weave code, execute in VM, and verify correct results. Include edge cases like recursive calls with upvalue capture, recursive closures (where allowed), and recursive calls mixed with local variable scoping. Add performance tests for deep recursion to verify stack management. Tests should validate fixes from tasks 11-14 including proper Op::Call generation in binary expressions, correct stack indexing for multiple call frames, and proper local variable compilation in recursive contexts.",
+        "testStrategy": "Create test cases for factorial(0), factorial(5), fibonacci(0-10), mixed arithmetic with recursive calls like factorial(3) + fibonacci(4) * 2, deeply nested recursive scenarios up to reasonable stack limits. Verify bytecode generation includes proper Op::Call instructions. Test recursive calls with local variables, upvalue capture scenarios, and integration with closure functionality. Add negative test cases for stack overflow protection. All tests must pass consistently and demonstrate the recursive call fixes are working correctly across different function call patterns.",
+        "status": "pending",
+        "dependencies": [
+          11,
+          12,
+          13,
+          14
+        ],
+        "priority": "medium",
         "subtasks": []
       }
     ],
     "metadata": {
-      "created": "2025-07-26T02:26:52.663Z",
-      "updated": "2025-07-26T15:51:18.959Z",
+      "created": "2025-07-24T17:50:08.486Z",
+      "updated": "2025-07-26T19:09:19.802Z",
       "description": "Tasks for master context"
     }
   }

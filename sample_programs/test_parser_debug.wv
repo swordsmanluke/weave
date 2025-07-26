@@ -1,0 +1,15 @@
+fn test(n) { 1 }
+
+# This should work (direct function call)
+puts test(5)
+
+# This should work (binary expression with function call)  
+puts 2 + test(3)
+
+# This fails in factorial - test in simpler context
+fn simple(x) { 
+    puts x
+    x * test(1)  # This should be similar to n * factorial(n-1)
+}
+
+puts simple(2)

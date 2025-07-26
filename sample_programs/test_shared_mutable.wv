@@ -1,0 +1,20 @@
+fn test_shared_mutable() {
+    count = 0
+    
+    fn make_incrementer() {
+        fn increment() {
+            count = count + 1
+            count
+        }
+        increment
+    }
+    
+    inc1 = make_incrementer()
+    inc2 = make_incrementer()
+    
+    puts inc1()    # Should be 1
+    puts inc2()    # Should be 2 (sharing same count)
+    puts inc1()    # Should be 3 (sharing same count)
+}
+
+test_shared_mutable()

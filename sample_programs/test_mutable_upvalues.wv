@@ -1,0 +1,52 @@
+fn make_shared_counter() {
+    count = 0
+    
+    fn increment() {
+        count = count + 1
+        count
+    }
+    
+    fn decrement() {
+        count = count - 1
+        count
+    }
+    
+    fn get_count() {
+        count
+    }
+    
+    # Return object with multiple closures sharing same upvalue
+    [increment, decrement, get_count]
+}
+
+# This would test if multiple closures can share mutable upvalues
+# But we don't have array/object syntax yet, so let's test simpler case
+
+fn test_multiple_counters() {
+    count = 0
+    
+    fn make_incrementer() {
+        fn increment() {
+            count = count + 1
+            count
+        }
+        increment
+    }
+    
+    fn make_reader() {
+        fn read() {
+            count
+        }
+        read
+    }
+    
+    inc = make_incrementer()
+    reader = make_reader()
+    
+    puts inc()      # Should increment to 1
+    puts reader()   # Should read 1
+    puts inc()      # Should increment to 2  
+    puts reader()   # Should read 2
+}
+
+test_multiple_counters()
