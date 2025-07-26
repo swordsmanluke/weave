@@ -1,0 +1,88 @@
+title: "Closure Creation Flow in Weave"
+
+# Compilation Phase
+compilation: {
+  source: "Source Code\nfn make_counter() {\n  count = 0\n  fn counter() {\n    count = count + 1\n  }\n}" {
+    shape: text
+    style.font-size: 12
+  }
+  
+  scanner: "Scanner\nTokenize source" {
+    style.fill: "#e1f5fe"
+  }
+  
+  parser: "Parser\nBuild AST" {
+    style.fill: "#e8f5e8"
+  }
+  
+  analyzer: "Variable Analyzer\nDetect captures:\n- counter captures count\n- Create Upvalue::local(1)" {
+    style.fill: "#fff3e0"
+  }
+  
+  bytecode: "Bytecode Generator\nEmit OP_CLOSURE\n+ function index\n+ upvalue metadata" {
+    style.fill: "#fce4ec"
+  }
+  
+  source -> scanner -> parser -> analyzer -> bytecode
+}
+
+# Runtime Phase
+runtime: {
+  vm: "VM Execution\nEncounter OP_CLOSURE" {
+    style.fill: "#e3f2fd"
+  }
+  
+  function_read: "Read Function\nConstant[idx] -> WeaveFn" {
+    style.fill: "#e8f5e8"
+  }
+  
+  upvalue_process: "Process Upvalues\nRead metadata bytes:\nis_local=true, idx=1" {
+    style.fill: "#fff3e0"
+  }
+  
+  upvalue_create: "Create WeaveUpvalue\nWeaveUpvalue::open(stack_pos)" {
+    style.fill: "#fce4ec"
+  }
+  
+  closure_create: "Create FnClosure\nFunction + Upvalues array" {
+    style.fill: "#f3e5f5"
+  }
+  
+  stack_push: "Push to Stack\nClosure ready for calls" {
+    style.fill: "#e0f2f1"
+  }
+  
+  vm -> function_read -> upvalue_process -> upvalue_create -> closure_create -> stack_push
+}
+
+# Data Structures
+structures: {
+  upvalue_bridge: "Upvalue (Bridge)\nidx: u8\nis_local: bool\noriginal_idx: u8" {
+    style.fill: "#ffebee"
+    shape: class
+  }
+  
+  weave_upvalue: "WeaveUpvalue (Runtime)\nvalue: Rc<RefCell<InnerUpvalue>>" {
+    style.fill: "#e8eaf6"
+    shape: class
+  }
+  
+  inner_upvalue: "InnerUpvalue (State)\nOpen(OpenUpvalue)\nClosed(ClosedUpvalue)" {
+    style.fill: "#e0f7fa"
+    shape: class
+  }
+  
+  fn_closure: "FnClosure\nfunc: Rc<WeaveFn>\nupvalues: Vec<WeaveUpvalue>" {
+    style.fill: "#f1f8e9"
+    shape: class
+  }
+  
+  upvalue_bridge -> weave_upvalue: "Instantiated as"
+  weave_upvalue -> inner_upvalue: "Contains"
+  fn_closure -> weave_upvalue: "Owns array of"
+}
+
+# Flow connections
+compilation.bytecode -> runtime.vm: "Bytecode\nExecution"
+runtime.upvalue_create -> structures.weave_upvalue: "Creates"
+runtime.closure_create -> structures.fn_closure: "Creates"

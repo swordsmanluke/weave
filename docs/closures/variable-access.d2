@@ -1,0 +1,213 @@
+title: "Variable Access Patterns in Weave Closures"
+
+# VM Stack Layout
+stack: {
+  title: "VM Stack Frame Layout"
+  
+  frame: {
+    slot0: "Stack[0]\nFunction/Closure" {
+      style.fill: "#e3f2fd"
+    }
+    
+    slot1: "Stack[1]\nFirst param/local" {
+      style.fill: "#e8f5e8"
+    }
+    
+    slot2: "Stack[2]\nSecond param/local" {
+      style.fill: "#e8f5e8"
+    }
+    
+    slotN: "Stack[N]\nLast local" {
+      style.fill: "#e8f5e8"
+    }
+    
+    slot0 -> slot1 -> slot2 -> slotN: "Stack grows"
+  }
+}
+
+# Access Types
+access_types: {
+  title: "Variable Access Types"
+  
+  local: "Local Variable\nDirect stack access\nno indirection" {
+    style.fill: "#e8f5e8"
+  }
+  
+  upvalue: "Upvalue Access\nThrough upvalue array\n1-2 levels of indirection" {
+    style.fill: "#fff3e0"
+  }
+  
+  global: "Global Variable\nVM globals table\nhash table lookup" {
+    style.fill: "#ffebee"
+  }
+}
+
+# Upvalue Access Flow
+upvalue_access: {
+  title: "Upvalue Access Flow"
+  
+  instruction: "OP_GET_UPVALUE slot\nVM reads upvalue index" {
+    style.fill: "#e3f2fd"
+    shape: oval
+  }
+  
+  closure_lookup: "current_frame.closure\nGet current closure" {
+    style.fill: "#e8f5e8"
+  }
+  
+  upvalue_array: "closure.upvalues[slot]\nIndex into upvalue array" {
+    style.fill: "#fff3e0"
+  }
+  
+  state_check: "Check upvalue state\nOpen or Closed?" {
+    style.fill: "#f3e5f5"
+    shape: diamond
+  }
+  
+  # Open path
+  open_access: "Open Access\nvm.get_stack_var(idx)\nDirect stack access" {
+    style.fill: "#e8f5e8"
+  }
+  
+  # Closed path
+  closed_access: "Closed Access\nvalue.borrow().clone()\nHeap access via Rc<RefCell>" {
+    style.fill: "#ffecb3"
+  }
+  
+  result: "Return Value\nWeaveType value" {
+    style.fill: "#e0f7fa"
+    shape: oval
+  }
+  
+  # Flow
+  instruction -> closure_lookup -> upvalue_array -> state_check
+  state_check -> open_access: "Open"
+  state_check -> closed_access: "Closed"
+  open_access -> result
+  closed_access -> result
+}
+
+# Performance Comparison
+performance: {
+  title: "Access Performance"
+  
+  local_perf: "Local Variable\nO(1) - Direct indexing\n~1 CPU cycle" {
+    style.fill: "#c8e6c9"
+  }
+  
+  open_perf: "Open Upvalue\nO(1) - Array + stack index\n~2-3 CPU cycles" {
+    style.fill: "#fff9c4"
+  }
+  
+  closed_perf: "Closed Upvalue\nO(1) - Array + Rc + RefCell\n~5-10 CPU cycles" {
+    style.fill: "#ffcdd2"
+  }
+  
+  global_perf: "Global Variable\nO(1) avg - Hash table lookup\n~10-20 CPU cycles" {
+    style.fill: "#f8bbd9"
+  }
+}
+
+# Memory Layout
+memory: {
+  title: "Memory Layout Example"
+  
+  # Stack representation
+  stack_memory: {
+    title: "Stack Memory"
+    
+    make_counter_frame: "Frame: make_counter\n[fn_obj, count=0]" {
+      style.fill: "#e3f2fd"
+    }
+    
+    counter_frame: "Frame: counter\n[closure_obj]" {
+      style.fill: "#e8f5e8"
+    }
+  }
+  
+  # Heap representation
+  heap_memory: {
+    title: "Heap Memory"
+    
+    closure_obj: "FnClosure\nfunc: Rc<WeaveFn>\nupvalues: Vec<WeaveUpvalue>" {
+      style.fill: "#fff3e0"
+      shape: class
+    }
+    
+    upvalue_obj: "WeaveUpvalue\nvalue: Rc<RefCell<InnerUpvalue>>" {
+      style.fill: "#f3e5f5"
+      shape: class
+    }
+    
+    inner_open: "InnerUpvalue::Open\nidx: 1 (points to stack)" {
+      style.fill: "#e8f5e8"
+      shape: class
+    }
+    
+    inner_closed: "InnerUpvalue::Closed\nvalue: Rc<RefCell<WeaveType>>" {
+      style.fill: "#ffecb3"
+      shape: class
+    }
+    
+    closure_obj -> upvalue_obj: "contains"
+    upvalue_obj -> inner_open: "initially"
+    inner_open -> inner_closed: "transitions to\nwhen scope exits"
+  }
+  
+  # Connections
+  stack_memory.counter_frame -> heap_memory.closure_obj: "references"
+  heap_memory.inner_open -> stack_memory.make_counter_frame: "points to count"
+}
+
+# Variable Lifetime
+lifetime: {
+  title: "Variable Lifetime Stages"
+  
+  creation: "Variable Created\nLocal in function scope\nLives on stack" {
+    style.fill: "#e3f2fd"
+  }
+  
+  capture: "Variable Captured\nClosure references it\nUpvalue created (open)" {
+    style.fill: "#e8f5e8"
+  }
+  
+  scope_exit: "Scope Exits\nFunction returns\nStack frame popped" {
+    style.fill: "#fff3e0"
+  }
+  
+  transition: "Upvalue Closes\nValue moved to heap\nRc<RefCell> allocation" {
+    style.fill: "#ffecb3"
+  }
+  
+  persistence: "Variable Persists\nClosure maintains access\nHeap-based storage" {
+    style.fill: "#e0f7fa"
+  }
+  
+  cleanup: "Final Cleanup\nClosure dropped\nRc count reaches 0" {
+    style.fill: "#ffcdd2"
+  }
+  
+  creation -> capture -> scope_exit -> transition -> persistence -> cleanup
+}
+
+# Example Code Mapping
+example: {
+  title: "Code Example Mapping"
+  
+  source_code: 'fn make_counter() {\n  count = 0        // Local at stack[1]\n  fn counter() {\n    count = count + 1  // Upvalue access\n    count              // Upvalue access\n  }\n  counter\n}' {
+    style.fill: "#f5f5f5"
+    shape: text
+  }
+  
+  bytecode: "Bytecode:\nOP_CLOSURE func_idx 0x01 0x01\n  // is_local=true, idx=1\n\nIn counter():\nOP_GET_UPVALUE 0\nOP_CONSTANT 1\nOP_ADD\nOP_SET_UPVALUE 0\nOP_GET_UPVALUE 0" {
+    style.fill: "#e8eaf6"
+    shape: text
+  }
+  
+  runtime_flow: "Runtime:\n1. Create WeaveUpvalue::open(1)\n2. Access via upvalue[0]\n3. Read/write stack[1]\n4. When make_counter exits:\n5. Close upvalue\n6. Move value to heap" {
+    style.fill: "#e0f2f1"
+    shape: text
+  }
+  
+  source_code -> bytecode -> runtime_flow
+}

@@ -1,0 +1,138 @@
+title: "Upvalue State Transitions in Weave"
+
+# Initial State
+initial: "Variable Creation\nLocal variable on stack\nStack: [fn, count=0, ...]" {
+  style.fill: "#e3f2fd"
+}
+
+# Open State
+open_state: {
+  title: "Open Upvalue State"
+  
+  open_upvalue: "OpenUpvalue\nidx: stack_position" {
+    style.fill: "#e8f5e8"
+    shape: class
+  }
+  
+  stack_access: "Direct Stack Access\nvm.get_stack_var(idx)\nvm.set_stack_var(idx, value)" {
+    style.fill: "#fff3e0"
+  }
+  
+  characteristics: "Characteristics:\n• Fast access (direct stack)\n• No heap allocation\n• Variable still in scope" {
+    style.fill: "#f3e5f5"
+    shape: text
+  }
+  
+  open_upvalue -> stack_access: "Accesses"
+}
+
+# Transition Trigger
+transition: {
+  scope_exit: "Scope Exit Detected\nFunction returns\nStack about to be popped" {
+    style.fill: "#ffebee"
+    shape: diamond
+  }
+  
+  check: "Is upvalue open?" {
+    style.fill: "#fff8e1"
+    shape: diamond
+  }
+  
+  scope_exit -> check
+}
+
+# Closing Process
+closing: {
+  title: "Upvalue Closing Process"
+  
+  capture: "Capture Value\nvalue = stack[idx]\nRead current value" {
+    style.fill: "#e0f2f1"
+  }
+  
+  heap_alloc: "Heap Allocation\nRc::new(RefCell::new(value))\nMove to heap storage" {
+    style.fill: "#e1f5fe"
+  }
+  
+  state_update: "State Transition\nOpen -> Closed\nUpdate InnerUpvalue enum" {
+    style.fill: "#fce4ec"
+  }
+  
+  capture -> heap_alloc -> state_update
+}
+
+# Closed State
+closed_state: {
+  title: "Closed Upvalue State"
+  
+  closed_upvalue: "ClosedUpvalue\nvalue: Rc<RefCell<WeaveType>>" {
+    style.fill: "#ffecb3"
+    shape: class
+  }
+  
+  heap_access: "Heap Access\nvalue.borrow() / value.borrow_mut()\nShared mutable access" {
+    style.fill: "#f9fbe7"
+  }
+  
+  characteristics: "Characteristics:\n• Heap allocation overhead\n• Shared ownership (Rc)\n• Interior mutability (RefCell)\n• Survives scope exit" {
+    style.fill: "#fce4ec"
+    shape: text
+  }
+  
+  closed_upvalue -> heap_access: "Accesses"
+}
+
+# State Flow
+initial -> open_state.open_upvalue: "Closure Created\nWeaveUpvalue::open(idx)"
+open_state.open_upvalue -> transition.scope_exit: "Function execution"
+transition.check -> closing.capture: "Yes, close it"
+transition.check -> closed_state.closed_upvalue: "No, already closed"
+closing.state_update -> closed_state.closed_upvalue: "Transition complete"
+
+# Access Patterns
+access_patterns: {
+  title: "Variable Access Patterns"
+  
+  get_open: "Get (Open)\nstack[upvalue.idx]" {
+    style.fill: "#e8f5e8"
+  }
+  
+  set_open: "Set (Open)\nstack[upvalue.idx] = value" {
+    style.fill: "#e8f5e8"
+  }
+  
+  get_closed: "Get (Closed)\nvalue.borrow().clone()" {
+    style.fill: "#ffecb3"
+  }
+  
+  set_closed: "Set (Closed)\nvalue.replace(new_value)" {
+    style.fill: "#ffecb3"
+  }
+  
+  open_state.open_upvalue -> get_open: "OP_GET_UPVALUE"
+  open_state.open_upvalue -> set_open: "OP_SET_UPVALUE"
+  closed_state.closed_upvalue -> get_closed: "OP_GET_UPVALUE"
+  closed_state.closed_upvalue -> set_closed: "OP_SET_UPVALUE"
+}
+
+# Example Timeline
+timeline: {
+  title: "Example: Counter Closure"
+  
+  step1: "1. make_counter() called\ncount=0 at stack[1]\nOpen upvalue created" {
+    style.fill: "#e3f2fd"
+  }
+  
+  step2: "2. counter() returned\nUpvalue still open\nPointing to stack[1]" {
+    style.fill: "#e8f5e8"
+  }
+  
+  step3: "3. make_counter() exits\nStack popped\nUpvalue closed" {
+    style.fill: "#ffebee"
+  }
+  
+  step4: "4. counter() called later\nAccess via heap\nValue preserved" {
+    style.fill: "#e0f7fa"
+  }
+  
+  step1 -> step2 -> step3 -> step4
+}
