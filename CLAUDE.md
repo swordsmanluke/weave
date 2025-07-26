@@ -4,14 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Weaver is a dynamically-typed programming language interpreter written in Rust. It features a bytecode compiler and stack-based virtual machine with support for closures, functions, and an interactive REPL.
+Weave is a dynamically-typed programming language interpreter written in Rust. It features a bytecode compiler and stack-based virtual machine with support for closures, functions, and an interactive REPL.
+
+Samples of Weave syntax can be found in docs/syntax.md
 
 ## Development Strategy
 
 ### Phase 0: Get Ready
 1. Run the Unit tests with `cargo test` - is anything broken? If so, STOP and ask the User if they would like you to fix the tests.
 2. If there are no ready Tasks: Move to Phase 1 to discover the User's next ask.
-3. If there are 
+3. If there is a ready Task: Move to Phase 2 to continue delivery of the in-progress work.
 
 ### Phase 1: Discover Requirements
 1. Use the /discovery process to ask questions of the User to discover the new requirements.
@@ -20,10 +22,13 @@ Weaver is a dynamically-typed programming language interpreter written in Rust. 
 
 ### Phase 2: Deliver a Task
 1. Select the next task from task-master
-2. reflect - are you ready to implement this? if not, abort and ask for help.
-3. Begin by creating tests to verify the desired behavior
-4. Use task-master's smart-implemntation workflow to develop the task. 
-5. Run the unit tests regularly to verify that progress is being made and that no regressions were introduced.
+2. reflect - do you have all information necessary to implement this? if not, abort and ask for help.
+3. Iterate this process:
+  - Create test(s) to verify the _desired_ behavior - these tests are expected to fail until the implementation is correct.
+  - Use task-master's smart-implemntation workflow to develop the task.
+  - Run all of the unit tests regularly to verify both that progress is being made and that no regressions were introduced.
+  - Reflect: if progress is stalling, is our approach correct? Use subtasks to consider alternative architectures and approaches. Proceed with the best approach - even if it is to stay on the current course.
+  - Repeat this process until the desired behavior has been implemented and all unit tests are passing.
 
 ## Development Commands
 
@@ -31,7 +36,7 @@ Weaver is a dynamically-typed programming language interpreter written in Rust. 
 - `cargo build` - Build the project in debug mode
 - `cargo build --release` - Build optimized release version
 - `cargo run` - Start the REPL (interactive shell)
-- `cargo run <filename.wv>` - Execute a Weaver script file
+- `cargo run <filename.wv>` - Execute a Weave script file
 
 ### Testing and Quality
 - `cargo test` - Run all tests
@@ -40,6 +45,9 @@ Weaver is a dynamically-typed programming language interpreter written in Rust. 
 - `cargo check` - Quick syntax and type checking
 - `cargo fmt` - Format code according to Rust standards
 - `cargo clippy` - Run Rust linter for code improvements
+
+## Documentation
+Documentation of this project can be found in docs/
 
 ## Architecture Overview
 
