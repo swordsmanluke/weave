@@ -7,14 +7,13 @@ use std::collections::HashMap;
 use std::io::{Write, stdout};
 use std::rc::Rc;
 use crate::weave::color::green;
+use crate::{log_debug, log_info, log_warn, log_error};
 
 pub struct VM {
     call_stack: CallStack,
     stack: Vec<WeaveType>,
     globals: HashMap<String, WeaveType>,
     last_value: WeaveType,
-
-    pub debug_mode: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -132,13 +131,12 @@ impl VMError {
 pub type VMResult = Result<WeaveType, VMError>;
 
 impl VM {
-    pub fn new(debug_mode: bool) -> VM {
+    pub fn new(_debug_mode: bool) -> VM {
         let mut vm = VM {
             call_stack: CallStack::new(),
             stack: Vec::with_capacity(255),
             globals: HashMap::new(),
             last_value: WeaveType::None,
-            debug_mode,
         };
 
         NativeFnType::variants().iter().for_each(|fn_type| {
@@ -149,7 +147,7 @@ impl VM {
     }
 
     pub fn interpret(&mut self, source: &str) -> VMResult {
-        let mut compiler = Compiler::new(source, self.debug_mode);
+        let mut compiler = Compiler::new(source, false);
         self.debug(&format!("Compiling...\n{}", source));
         let func = match compiler.compile() {
             Ok(c) => c,
@@ -221,7 +219,7 @@ impl VM {
         if self.call_stack.is_empty() { return Err(VMError::InvalidChunk); }
 
         self.debug("Executing...");
-        if self.debug_mode { self.call_stack.disassemble("main"); }
+        log_debug!("Starting VM execution", function = "main");
 
         while !self.call_stack.is_at_end() {
             // until ip offset > chunk size
@@ -363,7 +361,9 @@ impl VM {
                 Op::PRINT => {
                     // Don't remove the top value from the stack - printing a value evaluates
                     // to the value itself. e.g. "print(1) == 1"
-                    println!("{}", green(&format!("{}", self._peek())));
+                    let value = self._peek();
+                    println!("{}", green(&format!("{}", value)));
+                    log_debug!("VM print instruction", value = format!("{}", value).as_str(), stack_depth = self.stack.len());
                 }
                 Op::Jump => {
                     let jmp_target = self.call_stack.next_u16();
@@ -389,10 +389,7 @@ impl VM {
     }
 
     fn debug(&self, msg: &str) {
-        if self.debug_mode {
-            println!("{}", msg);
-            stdout().flush();
-        }
+        log_debug!("VM debug", message = msg, stack_depth = self.stack.len());
     }
 
     fn runtime_error(&mut self, line: usize, msg: &String) {
@@ -401,9 +398,12 @@ impl VM {
             let func = &frame.func;
             let line = func.chunk.line_number_at(frame.ip.idx(-1));
             
-            println!("[line {}] in {}", line, func.name);
-            println!("  {}", msg);
-            println!("  {}", func.chunk.line_str(frame.ip.idx(0)));
+            log_error!("Runtime error in function", 
+                line = line, 
+                function = func.name.as_str(), 
+                message = msg.as_str(),
+                code = func.chunk.line_str(frame.ip.idx(0)).as_str()
+            );
         }
 
         self.reset_stack();

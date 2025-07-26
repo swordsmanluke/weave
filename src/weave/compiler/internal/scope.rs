@@ -1,3 +1,5 @@
+use crate::log_debug;
+
 #[derive(PartialEq, Clone)]
 enum ScopeType {
     If,
@@ -55,22 +57,34 @@ impl Scope {
     }
     
     pub fn resolve_local(&self, identifier: &str) -> isize {
-        println!("Looking for local var: {}", identifier);
-        println!("Locals: {}", self.locals.iter().map(|l| l.name.as_str()).collect::<Vec<&str>>().join(", "));
+        let local_names: Vec<&str> = self.locals.iter().map(|l| l.name.as_str()).collect();
+        log_debug!("Resolving local variable", 
+            identifier = identifier, 
+            scope_depth = self.depth,
+            available_locals = format!("{:?}", local_names).as_str()
+        );
+        
         if self.locals.is_empty() {
-            println!("No local variables");
+            log_debug!("No local variables in scope", identifier = identifier);
             return -1;
         }
 
         for (i, l) in self.locals.iter().enumerate().rev() {
             if l.name.as_str() == identifier && l.depth == self.depth {
-                print!("Found local variable {}", l.name);
                 // Found the variable, but we can only assign to variables in our _immediate_ scope
                 if self.should_shadow() {
-                    println!("....but we're shadowing, so create a new var!");
+                    log_debug!("Found local variable but shadowing required", 
+                        variable = l.name.as_str(), 
+                        depth = l.depth,
+                        shadowing = true
+                    );
                     return -1;
                 }
-                println!("... and we're not shadowing, so we can use it!");
+                log_debug!("Found and using local variable", 
+                    variable = l.name.as_str(), 
+                    index = i,
+                    depth = l.depth
+                );
                 return i as isize;
             }
         }

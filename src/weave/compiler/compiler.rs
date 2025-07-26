@@ -7,6 +7,7 @@ use crate::weave::compiler::token::{Token, TokenType};
 use crate::weave::compiler::internal::Scope;
 use crate::weave::vm::types::{WeaveType, WeaveFn};
 use crate::weave::{Chunk, Op};
+use crate::{log_debug, log_info, log_warn, log_error};
 
 pub type CompileResult = Result<WeaveFn, String>;
  
@@ -22,7 +23,6 @@ pub struct Compiler {
     panic_mode: bool,
     function: WeaveFn,
     function_type: FnType,
-    debug_mode: bool,
     scope: Scope
 }
 
@@ -42,7 +42,7 @@ impl PartialEq for AssignMode {
 }
 
 impl Compiler {
-    pub fn new(source: &str, debug_mode: bool) -> Compiler {
+    pub fn new(source: &str, _debug_mode: bool) -> Compiler {
         Compiler {
             line: 1,
             parser: Parser::new(source),
@@ -51,7 +51,6 @@ impl Compiler {
             function: WeaveFn::new(String::new(), vec![]),
             function_type: FnType::Script,
             scope: Scope::new(),
-            debug_mode,
         }
     }
     
@@ -63,8 +62,7 @@ impl Compiler {
             panic_mode: false,
             function: WeaveFn::new(name, vec![]),
             function_type: FnType::Function,
-            scope: self.scope.clone(),
-            debug_mode: self.debug_mode
+            scope: self.scope.clone()
         }
     }
 
@@ -120,22 +118,24 @@ impl Compiler {
             return;
         }
 
-        println!("{}", message);
-        println!("Error on line {}:\n\t{}", token.line, token.lexeme);
-        stdout().flush();
+        log_error!("Compilation error", 
+            message = message, 
+            line = token.line, 
+            lexeme = format!("{}", token.lexeme).as_str()
+        );
         self.had_error = true;
         self.panic_mode = true;
     }
 
     pub fn expression(&mut self) {
-        if self.debug_mode { println!("Parsing Expression"); }
+        log_debug!("Parsing expression", current_token = format!("{:?}", self.parser.peek_type()).as_str());
         self.print_progress();
         self.parse_precedence(Precedence::ASSIGNMENT);
         self.check(TokenType::Semicolon);
     }
 
     pub fn declaration(&mut self) {
-        if self.debug_mode { println!("Parsing Declaration"); }
+        log_debug!("Parsing declaration", current_token = format!("{:?}", self.parser.peek_type()).as_str());
         self.print_progress();
 
         if self.panic_mode { self.synchronize(); }
@@ -161,22 +161,22 @@ impl Compiler {
     }
 
     fn variable_get(&mut self) {
-        if self.debug_mode { println!("compiling variable GET @ {}", self.parser.previous()); }
+        log_debug!("Compiling variable get", variable = format!("{}", self.parser.previous()).as_str(), line = self.line);
         let identifier = self.parser.previous().lexeme.lexeme().to_string();
         let idx = self.resolve_local(identifier.as_str());
         if idx != -1 {
-            if self.debug_mode { println!("Local variable found: {}@{}", identifier, idx); }
+            log_debug!("Local variable found", identifier = identifier, index = idx, scope_depth = self.scope.depth);
             self.emit_opcode(Op::GetLocal, &vec![idx as u8]);
         } else {
             let line = self.line;
-            if self.debug_mode { println!("Trying global variable: {}", identifier); }
+            log_debug!("Trying global variable", identifier = identifier);
             self.current_chunk().add_constant(WeaveType::String(identifier.into()), line);
             self.emit_basic_opcode(Op::GetGlobal);
         }
     }
 
     fn variable_set(&mut self) {
-        if self.debug_mode { println!("compiling variable DEF @ {}", self.parser.previous()); }
+        log_debug!("Compiling variable definition", variable = format!("{}", self.parser.previous()).as_str(), line = self.line);
 
         let identifier = self.parser.previous();
         self.consume(TokenType::Equal, "Expected assignment in declaration");
@@ -211,7 +211,7 @@ impl Compiler {
     }
 
     pub fn statement(&mut self) {
-        if self.debug_mode { println!("Parsing Statement"); }
+        log_debug!("Parsing statement", current_token = format!("{:?}", self.parser.peek_type()).as_str());
         self.print_progress();
 
         if self.check(TokenType::Puts) {
@@ -248,7 +248,7 @@ impl Compiler {
     }
 
     fn function_statement(&mut self) {
-        if self.debug_mode { println!("compiling function"); }
+        log_debug!("Compiling function", current_token = format!("{:?}", self.parser.peek_type()).as_str());
         self.consume(TokenType::Identifier, "Expected function name");
         let fn_name = self.parser.previous();
         
@@ -263,7 +263,7 @@ impl Compiler {
     }
 
     fn function(&mut self) {
-        if self.debug_mode { println!("compiling {}", self.function.name); }
+        log_debug!("Compiling function implementation", function_name = self.function.name.as_str());
         self.begin_scope();
         self.consume(TokenType::LeftParen, "Expected '(' after function name");
         self.function_params();
@@ -271,10 +271,8 @@ impl Compiler {
         
         self.consume(TokenType::LeftBrace, "Expected '{' before function body");
         self.block();
-        if self.debug_mode { 
-            println!("function {} compiled", self.function.name);
-            self.function.chunk.disassemble(self.function.name.as_str());
-        }
+        log_info!("Function compilation complete", function_name = self.function.name.as_str());
+        let _ = self.function.chunk.disassemble(self.function.name.as_str());
     }
 
     fn function_params(&mut self) {
@@ -351,7 +349,7 @@ impl Compiler {
     }
 
     fn check(&mut self, token: TokenType) -> bool {
-        if self.debug_mode { println!("Checking: {:?} == {:?}", token, self.parser.peek_type()); }
+        log_debug!("Checking token match", expected = format!("{:?}", token).as_str(), actual = format!("{:?}", self.parser.peek_type()).as_str());
         if self.parser.cur_is(token) {
             self.advance();
             true
@@ -366,7 +364,7 @@ impl Compiler {
     }
 
     fn begin_scope(&mut self) {
-        if self.debug_mode { println!("Begin Scope {}", self.scope.depth + 1); }
+        log_debug!("Beginning new scope", new_depth = self.scope.depth + 1);
         match self.parser.previous().token_type {
             TokenType::If => self.scope.enter_if_scope(),
             TokenType::FN => self.scope.enter_fn_scope(),
@@ -375,7 +373,7 @@ impl Compiler {
     }
 
     fn end_scope(&mut self) {
-        if self.debug_mode { println!("Exit Scope {}", self.scope.depth); }
+        log_debug!("Exiting scope", depth = self.scope.depth);
         self.scope.exit_scope();
         
         self.emit_basic_opcode(Op::RETURN);  // Implicit return when exiting a scope
@@ -412,16 +410,14 @@ impl Compiler {
     }
 
     fn print_progress(&mut self) {
-        if self.debug_mode { println!("  - Peek: {}\n  - Prev: {}\n", self.parser.peek(), self.parser.previous()); }
+        log_debug!("Parser state", peek_token = format!("{}", self.parser.peek()).as_str(), previous_token = format!("{}", self.parser.previous()).as_str());
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) {
         self.advance();
 
-        if self.debug_mode {
-            println!("Parsing Precedence {:?} @ {}", precedence, self.parser.previous());
-            self.print_progress();
-        }
+        log_debug!("Parsing precedence level", precedence = format!("{:?}", precedence).as_str(), current_token = format!("{}", self.parser.previous()).as_str());
+        self.print_progress();
 
         let assign_mode = if precedence > Precedence::ASSIGNMENT { AssignMode::No } else { AssignMode::Yes }; // if precedence is higher than ASSIGNMENT, then it is an assignment expression. Otherwise, it is not.AssignMode::No;
 
@@ -445,9 +441,7 @@ impl Compiler {
     }
 
     pub(crate) fn unary(&mut self, _assign_mode: AssignMode) {
-        if self.debug_mode {
-            println!("compiling unary @ {}", self.parser.previous());
-        }
+        log_debug!("Compiling unary expression", operator = format!("{}", self.parser.previous()).as_str());
         let operator = self.parser.previous().token_type;
         self.parse_precedence(Precedence::UNARY);
 
@@ -459,9 +453,7 @@ impl Compiler {
     }
 
     pub fn literal(&mut self, _assign_mode: AssignMode) {
-        if self.debug_mode {
-            println!("compiling literal @ {}", self.parser.previous());
-        }
+        log_debug!("Compiling literal", value = format!("{}", self.parser.previous()).as_str());
         match self.parser.previous().token_type {
             TokenType::True => self.emit_basic_opcode(Op::TRUE),
             TokenType::False => self.emit_basic_opcode(Op::FALSE),
@@ -486,10 +478,7 @@ impl Compiler {
     }
 
     pub(crate) fn binary(&mut self) {
-        if self.debug_mode {
-            println!("compiling binary");
-            self.print_progress();
-        }
+        log_debug!("Compiling binary expression", operator = format!("{:?}", self.parser.previous().token_type).as_str());
         let operator = self.parser.previous().token_type;
         let rule = ParseRule::for_token(operator);
 
@@ -520,13 +509,9 @@ impl Compiler {
     }
 
     pub fn number(&mut self, _assign_mode: AssignMode) {
-        if self.debug_mode {
-            println!("compiling number @ {}", self.parser.previous());
-        }
+        log_debug!("Compiling number literal", value = format!("{}", self.parser.previous()).as_str());
         let val = self.parser.previous().lexeme.lexeme().parse::<f64>();
-        if self.debug_mode {
-            println!("val: {:?}", val);
-        }
+        log_debug!("Parsed number value", parsed_value = format!("{:?}", val).as_str());
         match val {
             Ok(v) => self.emit_number(v),
             Err(_) => self.report_err(&format!("Not a Number: {}", self.parser.previous())),
@@ -534,33 +519,33 @@ impl Compiler {
     }
 
     pub fn string(&mut self, _assign_mode: AssignMode) {
-        if self.debug_mode { println!("compiling string @ {}", self.parser.previous()); }
+        log_debug!("Compiling string literal", value = format!("{}", self.parser.previous()).as_str());
         let value = self.parser.previous().lexeme.lexeme().to_string();
         self.emit_string(value);
     }
 
     fn emit_string(&mut self, value: String) {
-        if self.debug_mode { println!("Emitting opcode CONSTANT: {} at line {}", value, self.line); }
+        log_debug!("Emitting constant", constant_value = format!("{:?}", value).as_str(), line = self.line);
         let line = self.line;
         self.current_chunk().add_constant(WeaveType::String(value.into()), line);
     }
 
     fn emit_number(&mut self, value: f64) {
         let line = self.line;
-        if self.debug_mode { println!("Emitting opcode CONSTANT: {} at line {} offset {}", value, line, self.current_chunk().code.len()); }
+        log_debug!("Emitting constant opcode", constant_value = format!("{:?}", value).as_str(), line = line, offset = self.current_chunk().code.len());
         self.current_chunk()
             .add_constant(WeaveType::Number(value.into()), line);
     }
 
     fn emit_basic_opcode(&mut self, op: Op) {
         let line = self.line;
-        if self.debug_mode { println!("Emitting opcode: {:?} at line {} offset {}", op, line, self.current_chunk().code.len()); }
+        log_debug!("Emitting opcode", opcode = format!("{:?}", op).as_str(), line = line, offset = self.current_chunk().code.len());
         self.current_chunk().write_op(op, line);
     }
 
     fn emit_opcode(&mut self, op: Op, args: &Vec<u8>) {
         let line = self.line;
-        if self.debug_mode { println!("Emitting opcode: {:?} {:?} at line {} offset {}", op, args, line, self.current_chunk().code.len()); }
+        log_debug!("Emitting opcode with args", opcode = format!("{:?}", op).as_str(), args = format!("{:?}", args).as_str(), line = line, offset = self.current_chunk().code.len());
         self.current_chunk().write_op(op, line);
         self.current_chunk().write(args, line);
     }

@@ -2,6 +2,7 @@ use std::fmt::{Error};
 use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;
 use crate::weave::vm::types::WeaveType;
+use crate::log_debug;
 
 #[derive(Clone, Debug)]
 pub struct Chunk {
@@ -66,7 +67,7 @@ impl Chunk {
     }
 
     pub fn disassemble(&self, name: &str) -> Result<(), Error> {
-        println!("=== {0} ===\n", name);
+        log_debug!("Disassemble chunk", chunk_name = name);
         let mut offset = 0;
         while offset < self.code.len() {
             offset = Op::at(self.code[offset]).disassemble(offset, self);

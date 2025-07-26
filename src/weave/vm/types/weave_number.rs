@@ -1,5 +1,6 @@
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use crate::log_debug;
 
 #[derive(Debug, Clone)]
 pub enum WeaveNumber{
@@ -110,7 +111,7 @@ impl Sub for &WeaveNumber {
         let a = self.to_shared_type(&rhs);
         let b = rhs.to_shared_type(&self);
         
-        println!("{:?} - {:?}", a, b);
+        log_debug!("WeaveNumber subtraction", left = format!("{:?}", a).as_str(), right = format!("{:?}", b).as_str());
 
         match (&a, &b) {
             (WeaveNumber::UInt(a), WeaveNumber::UInt(b)) => WeaveNumber::UInt(a - b),

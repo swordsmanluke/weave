@@ -2,6 +2,7 @@ use std::fmt::Display;
 use crate::weave::vm::types::WeaveType;
 use crate::weave::vm::vm::VMError;
 use std::time::SystemTime;
+use crate::log_debug;
 
 #[derive(Debug, Clone)]
 pub enum NativeFnType {
@@ -85,6 +86,7 @@ fn print(args: Vec<WeaveType>) -> Result<WeaveType, VMError> {
         .map(|a| a.to_string())
         .collect::<Vec<String>>()
         .join("");
+    log_debug!("Native puts function call", output = printable.as_str());
     println!("{}", printable);
     Ok(WeaveType::None)
 }

@@ -1,0 +1,404 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup logging dependencies and basic infrastructure",
+        "description": "Add logging crate dependencies to Cargo.toml and create basic logging module structure",
+        "details": "Add `tracing` and `tracing-subscriber` crates to Cargo.toml for structured logging with tagging support. Create src/weave/logging/mod.rs module with basic structure. Add `clap` derive features for command line argument parsing if not already present. Set up the foundation for the logging system that will be used throughout the codebase.",
+        "testStrategy": "Verify dependencies compile successfully. Create basic unit test that initializes logging module without errors. Test that tracing macros are available and functional.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add logging crate dependencies to Cargo.toml",
+            "description": "Add tracing, tracing-subscriber, and tracing-appender crates to Cargo.toml with appropriate version constraints",
+            "dependencies": [],
+            "details": "Add the following dependencies to Cargo.toml: `tracing = \"0.1\"` for structured logging, `tracing-subscriber = \"0.3\"` for log formatting and output, and `tracing-appender = \"0.2\"` for file rotation. Verify clap has derive features enabled for command line parsing. Use conservative version constraints to ensure compatibility.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create basic logging module structure",
+            "description": "Create src/weave/logging/mod.rs with foundational module structure and exports",
+            "dependencies": [
+              "1.1"
+            ],
+            "details": "Create the logging module directory and mod.rs file. Define the module structure that will house logging initialization, configuration, and utility functions. Export necessary types and functions that will be used by other modules. Follow Rust naming conventions and module organization patterns used elsewhere in the weaver codebase.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Verify clap derive features configuration",
+            "description": "Ensure clap dependency has derive features enabled for command line argument parsing",
+            "dependencies": [
+              "1.1"
+            ],
+            "details": "Check existing clap configuration in Cargo.toml and add derive features if not already present. This will be needed for adding --log-console and other logging-related command line flags. Verify the configuration works by testing that derive macros are available.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Establish logging foundation and verify compilation",
+            "description": "Create basic logging infrastructure foundation and verify all dependencies compile successfully",
+            "dependencies": [
+              "1.2",
+              "1.3"
+            ],
+            "details": "Set up the basic foundation for the logging system including placeholder structures and functions that will be expanded in later tasks. Run `cargo check` and `cargo build` to verify all new dependencies compile without errors. Create a basic unit test to ensure the logging module can be imported and initialized without panics.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Implement log file management and rotation",
+        "description": "Create log directory structure, implement file rotation logic, and handle log file creation",
+        "details": "Create `.weaver/logs/` directory if it doesn't exist. Implement rotation logic for 5MB file size limit keeping last 10 files (weaver.log, weaver.log.1 through weaver.log.10). Use tracing-appender for file rotation. Handle directory creation errors and disk space issues with appropriate error messages that crash the application as specified.",
+        "testStrategy": "Unit tests for directory creation, file rotation logic, and error handling. Integration test that writes logs until rotation occurs and verifies correct file naming scheme.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement log directory creation with error handling",
+            "description": "Create `.weaver/logs/` directory structure with proper error handling and permissions",
+            "dependencies": [],
+            "details": "Implement directory creation logic that checks if `.weaver/logs/` exists and creates it if needed. Handle filesystem permissions errors, disk full conditions, and invalid path scenarios. Ensure the directory is created with appropriate permissions for log file writing. Include comprehensive error messages that specify the exact failure reason and crash the application appropriately when directory creation fails.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement file rotation logic for 5MB limit with 10-file retention",
+            "description": "Create core rotation logic to manage log file size limits and retention policy",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "Implement rotation logic that monitors current log file size and triggers rotation when it exceeds 5MB. Create naming scheme for rotated files (weaver.log, weaver.log.1, weaver.log.2, etc.). Implement file shifting logic to maintain only the last 10 files, removing older ones. Handle edge cases like existing rotated files on startup and concurrent access scenarios.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Integrate with tracing-appender for file output",
+            "description": "Configure tracing-appender to work with the custom rotation logic and directory structure",
+            "dependencies": [
+              "2.1",
+              "2.2"
+            ],
+            "details": "Set up tracing-appender configuration to write logs to the `.weaver/logs/` directory. Integrate the custom rotation logic with tracing-appender's rolling file functionality. Configure appropriate file handles and ensure proper synchronization between the tracing system and file operations. Handle tracing-appender specific error conditions.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement disk space monitoring and management",
+            "description": "Add disk space checks and management for log file operations",
+            "dependencies": [
+              "2.2"
+            ],
+            "details": "Implement disk space monitoring to detect low disk space conditions before writing logs. Add logic to check available disk space during rotation operations. Implement graceful handling when disk space is insufficient - either by cleaning up older log files more aggressively or by crashing with a clear error message. Include monitoring for the total space consumed by all log files.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement comprehensive error handling with application crashes",
+            "description": "Create robust error handling that crashes the application appropriately for log management failures",
+            "dependencies": [
+              "2.1",
+              "2.2",
+              "2.3",
+              "2.4"
+            ],
+            "details": "Implement comprehensive error handling for all log file management operations. Define clear error types for different failure scenarios (permissions, disk space, I/O errors, etc.). Ensure that critical log management failures result in application crashes with informative error messages. Create error propagation strategy that allows for proper cleanup before crashing. Include detailed error messages that help users understand and resolve log-related issues.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Design and implement structured logging API",
+        "description": "Create logging macros and API that supports severity levels and structured metadata",
+        "details": "Implement log_debug!, log_info!, log_warn!, log_error! macros using tracing infrastructure. Support structured context: log_info!(\"message\", thread_id = 123, module = \"parser\"). Configure timestamp format as ISO 8601. Design API to be simple and intuitive for developers while leveraging tracing's span and event capabilities for metadata.",
+        "testStrategy": "Unit tests for each macro with various context parameters. Verify structured data is captured correctly. Test that macros work in different modules and contexts throughout the codebase.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define logging macro architecture and basic structure",
+            "description": "Create the foundational macro definitions for log_debug!, log_info!, log_warn!, and log_error! using Rust's macro system",
+            "dependencies": [],
+            "details": "Define the macro signatures and basic structure in src/weave/logging/macros.rs. Create declarative macros that accept message and optional structured context parameters. Establish the pattern for severity level handling and prepare the foundation for tracing integration. Focus on macro syntax design and parameter handling without full implementation.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement structured context parameter handling",
+            "description": "Build the parameter parsing and structured data handling within the logging macros",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Implement the macro logic to parse and handle structured context parameters like thread_id = 123, module = \"parser\". Create the mechanism to capture key-value pairs and convert them into tracing-compatible structured data. Handle various parameter types and ensure proper serialization for the structured logging format.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Configure timestamp formatting and tracing integration",
+            "description": "Integrate the macros with tracing infrastructure and configure ISO 8601 timestamp formatting",
+            "dependencies": [
+              "3.2"
+            ],
+            "details": "Connect the logging macros to the tracing event system, ensuring proper severity level mapping. Configure timestamp formatting to use ISO 8601 standard. Implement the bridge between macro invocations and tracing events/spans, ensuring metadata is properly captured and forwarded to the underlying tracing system.",
+            "status": "done",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Validate API design and developer experience",
+            "description": "Test and refine the logging API for intuitive developer usage across different contexts",
+            "dependencies": [
+              "3.3"
+            ],
+            "details": "Perform comprehensive testing of the logging macros in various contexts throughout the codebase. Validate that the API is intuitive and works seamlessly in different modules, functions, and execution contexts. Ensure proper error handling when macros are used incorrectly. Fine-tune the developer experience based on usage patterns and potential edge cases.",
+            "status": "done",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Implement command line argument parsing for logging configuration",
+        "description": "Add CLI arguments for log level, console output, file path, and format options",
+        "details": "Extend existing CLI argument parsing (likely in main.rs) to support: --log-level (DEBUG|INFO|WARN|ERROR, default INFO), --log-console (flag), --log-file <PATH>, --log-format (text|json). Integrate with clap derive macros. Ensure arguments work for both REPL and file execution modes.",
+        "testStrategy": "Unit tests for argument parsing logic. Integration tests that run the application with different flag combinations and verify correct behavior. Test default values when no flags provided.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "in-progress",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Extend existing CLI structure with logging arguments",
+            "description": "Add logging-related command line arguments to the existing CLI argument structure using clap derive macros",
+            "dependencies": [],
+            "details": "Locate existing CLI argument parsing structure (likely in main.rs or a dedicated CLI module). Add new fields for logging configuration: log_level (enum with DEBUG|INFO|WARN|ERROR, default INFO), log_console (boolean flag), log_file (optional PathBuf), and log_format (enum with text|json options). Use clap derive attributes to define proper help text, default values, and validation rules.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement logging-specific flag parsing logic",
+            "description": "Create parsing and validation logic for the new logging command line flags with proper error handling",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Implement custom parsing logic for log level validation (case-insensitive matching). Add validation for log file path permissions and directory existence. Create proper error messages for invalid combinations (e.g., specifying log file without enabling file logging). Ensure default behavior when no logging flags are provided matches the requirements.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Integrate logging arguments with clap derive macros",
+            "description": "Properly configure clap derive macros for logging arguments with appropriate attributes and documentation",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Add proper clap derive attributes: #[arg(long, value_enum)] for log_level, #[arg(long)] for log_console flag, #[arg(long, value_name = \"PATH\")] for log_file, and #[arg(long, value_enum)] for log_format. Include comprehensive help text and examples. Set up proper value names and possible values display for enum arguments.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Ensure compatibility with REPL and file execution modes",
+            "description": "Verify and adapt argument parsing to work correctly in both interactive REPL and script file execution contexts",
+            "dependencies": [
+              "4.2",
+              "4.3"
+            ],
+            "details": "Test argument parsing in both `cargo run` (REPL mode) and `cargo run script.wv` (file execution mode) contexts. Ensure logging configuration is properly passed to the logging initialization system regardless of execution mode. Handle any differences in argument processing between the two modes and ensure consistent behavior.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Configure logging initialization and output formatting",
+        "description": "Initialize logging system in main function with proper formatters for text and JSON output",
+        "details": "Initialize tracing subscriber in main function as early as possible. Configure text format as '<timestamp> - <file>:<line> - <tags> - \"<message>\"' and JSON format option. Set up conditional console output based on --log-console flag. Ensure same configuration works for both REPL and file execution modes. Handle logging system initialization failures by crashing with clear error messages.",
+        "testStrategy": "Integration tests that verify log output format in both text and JSON modes. Test console vs file-only output. Verify initialization works correctly in both REPL and script execution modes.",
+        "priority": "high",
+        "dependencies": [
+          2,
+          3,
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement early logging initialization in main function",
+            "description": "Add logging system initialization as early as possible in main function before any other operations",
+            "dependencies": [],
+            "details": "Initialize tracing subscriber at the very beginning of main() function, before argument parsing or any other logic. Set up global subscriber with error handling that crashes application with clear error message if initialization fails. Ensure initialization happens before REPL or script execution paths diverge.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Configure text format output with timestamp and structured fields",
+            "description": "Implement text formatter that outputs logs in the specified format with timestamp, file location, and message",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "Configure tracing-subscriber with custom text format: '<timestamp> - <file>:<line> - <tags> - \"<message>\"'. Use ISO 8601 timestamp format. Include file name and line number from source location. Format structured tags/metadata appropriately. Ensure format is consistent across all log levels.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement JSON format output option",
+            "description": "Add JSON formatting capability for structured log output when requested",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "Configure alternative JSON formatter using tracing-subscriber's JSON layer. Include timestamp, level, message, file location, line number, and all structured metadata as JSON fields. Ensure JSON output is valid and parseable. Make format selection conditional based on CLI arguments.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Setup conditional console output based on CLI flags",
+            "description": "Implement logic to conditionally enable console logging output based on --log-console flag",
+            "dependencies": [
+              "5.2",
+              "5.3"
+            ],
+            "details": "Configure tracing subscriber to output to console only when --log-console flag is provided. Set up conditional layer activation based on parsed CLI arguments. Ensure console output uses the same format as file output (text or JSON). Handle case where both console and file outputs are disabled.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement robust error handling for initialization failures",
+            "description": "Add comprehensive error handling for all logging initialization scenarios with clear crash messages",
+            "dependencies": [
+              "5.1",
+              "5.4"
+            ],
+            "details": "Wrap all logging initialization steps in proper error handling. Provide clear, actionable error messages for common failure scenarios (permission issues, disk space, invalid configuration). Crash application immediately with descriptive messages rather than continuing with broken logging. Test error paths and ensure graceful failure behavior.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Replace print statements in compiler module",
+        "description": "Systematically replace existing print statements in scanner, parser, and compiler with appropriate log calls",
+        "details": "Go through src/weave/compiler/ modules (scanner.rs, parser.rs, compiler.rs) and replace print statements with appropriate log levels. Use DEBUG for detailed debugging, INFO for general progress, WARN for recoverable issues, ERROR for failures. Add contextual information like token types, AST node details, bytecode generation progress using structured logging API.",
+        "testStrategy": "Run existing compiler tests and verify they still pass. Manual testing of compilation with different log levels to ensure appropriate messages appear. Verify no print statements remain in compiler modules.",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Scan and inventory existing print statements in compiler modules",
+            "description": "Systematically identify all print statements, println! macros, and debug output in scanner.rs, parser.rs, and compiler.rs",
+            "dependencies": [],
+            "details": "Use grep/ripgrep to search for print!, println!, dbg!, eprintln! and similar output statements across src/weave/compiler/ directory. Document each occurrence with file location, line number, and context (what information is being printed). Create inventory list categorizing by purpose: debug info, error messages, progress indicators, or diagnostic output. This will inform appropriate log level selection in subsequent subtasks.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Replace print statements in scanner.rs with structured logging",
+            "description": "Convert all print statements in the scanner module to appropriate log calls with contextual information",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "Replace print statements in scanner.rs with tracing macros (debug!, info!, warn!, error!). Add context like current token, position in source, lexeme values, and scanner state. Use DEBUG for token-by-token scanning details, INFO for scan completion, WARN for unusual characters or recovery, ERROR for scan failures. Ensure no functionality changes - only output mechanism changes.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Replace print statements in parser.rs with structured logging",
+            "description": "Convert all print statements in the parser module to appropriate log calls with AST context",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "Replace print statements in parser.rs with tracing macros. Add context like current rule being parsed, AST node types, precedence levels, and parse tree structure. Use DEBUG for detailed parsing steps, INFO for successful parse completion, WARN for syntax recovery, ERROR for parse errors. Include structured fields like node_type, token_value, and parse_depth for better log analysis.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Replace print statements in compiler.rs with bytecode generation context",
+            "description": "Convert all print statements in the compiler module to structured logging with bytecode and scope information",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "Replace print statements in compiler.rs with tracing macros. Add context like bytecode instructions being generated, scope depth, variable declarations, and compilation progress. Use DEBUG for instruction-by-instruction generation, INFO for compilation phases, WARN for scope resolution issues, ERROR for compilation failures. Include structured fields like instruction_type, scope_level, and variable_name for comprehensive debugging.",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Replace print statements in VM module",
+        "description": "Replace existing print statements in VM execution, stack operations, and memory management with structured log calls",
+        "details": "Replace print statements in src/weave/vm/ modules with appropriate logging calls. Focus on vm.rs for instruction execution, stack operations, function calls/returns. Add context like instruction pointer, stack depth, current instruction, variable values. Use DEBUG for detailed execution flow, INFO for major operations, WARN for unusual conditions, ERROR for VM failures.",
+        "testStrategy": "Run existing VM tests with different log levels. Verify that VM functionality remains unchanged while providing useful logging output. Test that performance impact is acceptable during normal operation.",
+        "priority": "medium",
+        "dependencies": [
+          5
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Complete migration and add contextual logging to remaining modules",
+        "description": "Finish replacing all remaining print statements and add contextual logging to error handling, REPL, and other modules",
+        "details": "Complete migration of any remaining print statements in main.rs, REPL functionality, error handling, and type system modules. Add contextual logging for memory management, garbage collection events, and native function calls. Ensure all areas identified in PRD have appropriate logging: function calls/returns, error handling/recovery, memory allocations. Verify no print statements remain anywhere in codebase.",
+        "testStrategy": "Comprehensive search for remaining print statements in codebase. Integration tests that exercise all major code paths while verifying appropriate log output. Performance testing to ensure DEBUG level logging doesn't significantly impact execution speed.",
+        "priority": "medium",
+        "dependencies": [
+          6,
+          7
+        ],
+        "status": "done",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-07-26T02:26:52.663Z",
+      "updated": "2025-07-26T15:51:18.959Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

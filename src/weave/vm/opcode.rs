@@ -1,6 +1,7 @@
 use crate::weave::Chunk;
 use crate::weave::Op::INVALID;
 use crate::weave::vm::traits::disassemble::Disassemble;
+use crate::log_debug;
 
 #[derive(Debug, PartialEq)]
 pub enum Op {
@@ -117,7 +118,7 @@ impl Disassemble for Op {
     fn disassemble(&self, offset: usize, chunk: &Chunk) -> usize {
         match self {
             Op::CONSTANT => {
-                print!("{0:04x}  {1}  CONSTANT", offset, chunk.line_str(offset));
+                log_debug!("Disassemble CONSTANT start", offset = format!("{:04x}", offset).as_str(), line = chunk.line_str(offset).as_str());
                 let mut offset = offset + 1; // Skip the opcode, already consumed
 
                 // Read two bytes for the index
@@ -126,49 +127,49 @@ impl Disassemble for Op {
 
                 // Now retrieve the value from the constants table and print it
                 let value = &chunk.constants[idx];
-                println!("\t{0:04x}  {1}", idx, value);
+                log_debug!("Disassemble CONSTANT", idx = idx, value = format!("{}", value).as_str());
                 offset
             },
             Op::Call => {
                 let mut offset = offset;
-                print!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
+                log_debug!("Disassemble Call start", offset = format!("{:04x}", offset).as_str(), line = chunk.line_str(offset).as_str());
                 offset += 1; // We've read our opcode, next, get the jump offset
                 let slot = (offset as isize - chunk.code[offset] as isize) as usize;
                 offset += 1;
-                println!("\t{0:04x}", slot);
+                log_debug!("Disassemble Call", slot = slot);
                 offset
             }
             Op::Loop => {
                 let mut offset = offset;
-                print!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
+                log_debug!("Disassemble Loop start", offset = format!("{:04x}", offset).as_str(), line = chunk.line_str(offset).as_str());
                 offset += 1; // We've read our opcode, next, get the jump offset
                 let jump = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
                 offset += 2;
                 let new_pos = (offset as isize - jump as isize) as usize;
-                println!("\t\t{0:04x}", new_pos);
+                log_debug!("Disassemble Loop", new_position = format!("{:04x}", new_pos).as_str());
 
                 offset
             }, 
             Op::Jump | Op::JumpIfFalse => {
                 let mut offset = offset;
-                print!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
+                log_debug!("Disassemble Jump start", offset = format!("{:04x}", offset).as_str(), line = chunk.line_str(offset).as_str(), opcode = format!("{:?}", self).as_str());
                 offset += 1; // We've read our opcode, next, get the jump offset
                 let jump = u16::from_be_bytes(chunk.code[offset..offset + 2].try_into().unwrap()) as usize;
                 offset += 2;
-                println!("\t{0:04x}", offset + jump);
+                log_debug!("Disassemble Jump", target = format!("{:04x}", offset + jump).as_str());
                 
                 offset
             }
             Op::GetLocal | Op::SetLocal => {
-                print!("{0:04x}  {1}  {2:?}",  offset, chunk.line_str(offset), self);
+                log_debug!("Disassemble Local start", offset = format!("{:04x}", offset).as_str(), line = chunk.line_str(offset).as_str(), opcode = format!("{:?}", self).as_str());
                 // Lookup the slot and print its contents
                 let slot = chunk.code[offset + 1];
                 let value = &chunk.constants.get(slot as usize);
-                println!("\t{0:04x}  {1:?}", slot, value);
+                log_debug!("Disassemble Local", slot = slot, value = format!("{:?}", value).as_str());
                 offset + 2
             }
             op => {
-                println!("{:04x}  {}  {:?}", offset, chunk.line_str(offset), op);
+                log_debug!("Disassemble Op", offset = format!("{:04x}", offset).as_str(), line = chunk.line_str(offset).as_str(), opcode = format!("{:?}", op).as_str());
                 offset + 1
             }
         }

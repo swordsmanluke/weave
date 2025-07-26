@@ -1,9 +1,9 @@
 use std::rc::Rc;
 use crate::weave::compiler::token::{Token, TokenType};
+use crate::log_debug;
 
 #[derive(Debug, Clone)]
 pub struct Scanner {
-    debug_mode: bool,
     code: Rc<String>,
     start: usize,
     current: usize,
@@ -11,10 +11,9 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    pub fn new(code: &str, debug_mode: bool) -> Scanner {
+    pub fn new(code: &str, _debug_mode: bool) -> Scanner {
         let code = Rc::new(code.to_string());
         Scanner {
-            debug_mode,
             code: code.clone(),
             start: 0,
             current: 0,
@@ -53,12 +52,12 @@ impl Scanner {
     }
 
     pub fn basic_token(&self, token_type: TokenType) -> Token {
-        if self.debug_mode { println!("scanner emitting {:?}", token_type); }
+        log_debug!("Scanner emitting token", token_type = format!("{:?}", token_type).as_str(), line = self.line);
         Token::basic_token(token_type, (self.start, self.current), self.line)
     }
 
     pub fn text_token(&self, token_type: TokenType, lextext: &str) -> Token {
-        if self.debug_mode { println!("scanner emitting {:?}: {}", token_type, lextext); }
+        log_debug!("Scanner emitting text token", token_type = format!("{:?}", token_type).as_str(), lexeme = lextext, line = self.line);
         Token::text_token(token_type, (self.start, self.current), lextext, self.line)
     }
 
@@ -69,7 +68,7 @@ impl Scanner {
                     self.advance();
                 }
                 '\n' => {
-                    if self.debug_mode { println!("scanner: increasing line due to newline char"); }
+                    log_debug!("Scanner encountered newline", line = self.line + 1);
                     self.line += 1;
                     self.advance();
                 }
@@ -84,10 +83,9 @@ impl Scanner {
     }
 
     pub fn scan_token(&mut self) -> Token {
-        if self.debug_mode { println!("scanner: Scanning next token");
-        print!("scanner: Skipping whitespace @ {}-", self.current); }
+        log_debug!("Scanner scanning next token", current_pos = self.current);
         self.skip_whitespace();
-        if self.debug_mode { println!("{}", self.current); }
+        log_debug!("Scanner whitespace skipped", new_pos = self.current);
         self.start = self.current; // Reset the self/scanner
 
         if self.is_at_end() {
@@ -177,7 +175,7 @@ impl Scanner {
     }
 
     fn scan_string(&mut self) -> Token {
-        if self.debug_mode { println!("scanning string"); }
+        log_debug!("Scanner scanning string literal", start_pos = self.start, line = self.line);
         // Down the road, we'll want to support interpolation, but for right now, simple string parsing is good enough
         while !self.is_at_end() && !self.matches('"') {
             if self.matches('\n') { self.line += 1; }
