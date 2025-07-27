@@ -108,6 +108,7 @@ impl Scanner {
             '+' => self.basic_token(TokenType::Plus),
             ';' => self.basic_token(TokenType::Semicolon),
             '/' => self.basic_token(TokenType::Slash),
+            '^' => self.basic_token(TokenType::Caret),
 
             '"' => self.scan_string(),
 

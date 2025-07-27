@@ -11,7 +11,7 @@ Optimize upvalue implementation to minimize .clone() operations throughout codeb
 Performance benchmarks for hot-loop closure usage, memory usage profiling, verify minimal clone operations, test 10K iteration performance requirement
 
 # Subtasks:
-## 1. Profile Performance Bottlenecks [pending]
+## 1. Profile Performance Bottlenecks [in-progress]
 ### Dependencies: None
 ### Description: Identify specific performance bottlenecks in closure hot loop execution
 ### Details:

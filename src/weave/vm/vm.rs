@@ -391,7 +391,6 @@ impl VM {
                     self.debug(&format!("Taking {} @ {}", func, func_slot));
                     match func {
                         WeaveType::Closure(f) => {
-                            // self.debug(&format!("Calling {} with {} arguments", f, arg_count));
                             self.call_stack.push(f.clone(), func_slot);
                             self.call(f.clone(), arg_count)?;
                         }
@@ -846,5 +845,150 @@ mod tests {
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(10.0));
+    }
+
+    #[test]
+    fn test_basic_lambda() {
+        let code = "
+            add = ^(a, b) { a + b }
+            add(3, 4)
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(7.0));
+    }
+
+    #[test]
+    fn test_lambda_with_closure() {
+        let code = "
+            fn make_adder(x) {
+                ^(y) { x + y }
+            }
+            add5 = make_adder(5)
+            add5(10)
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(15.0));
+    }
+
+    #[test]
+    fn test_lambda_no_params() {
+        let code = "
+            getValue = ^() { 42 }
+            getValue()
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(42.0));
+    }
+
+    #[test]
+    fn test_lambda_single_param() {
+        let code = "
+            square = ^(x) { x * x }
+            square(6)
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(36.0));
+    }
+
+    #[test]
+    fn test_multiple_lambdas_sequential() {
+        let code = "
+            add = ^(a, b) { a + b }
+            result1 = add(3, 4)
+            
+            square = ^(x) { x * x }
+            result2 = square(5)
+            
+            result1 + result2
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(32.0)); // 7 + 25 = 32
+    }
+
+    #[test]
+    fn test_multiple_lambdas_same_line() {
+        let code = "
+            add = ^(a, b) { a + b }
+            mul = ^(x, y) { x * y }
+            add(3, 4) + mul(5, 6)
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(37.0)); // 7 + 30 = 37
+    }
+
+    #[test]
+    fn test_lambda_sequence_with_strings() {
+        let code = "
+            add = ^(a, b) { a + b }
+            getMessage = ^() { \"Hello\" }
+            
+            result = add(3, 4)
+            msg = getMessage()
+            result
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(7.0));
+    }
+
+    #[test]
+    fn test_lambda_with_intermediate_variables() {
+        let code = "
+            lambda1 = ^(x) { x + 1 }
+            temp = 5
+            lambda2 = ^(y) { y * 2 }
+            
+            result1 = lambda1(temp)
+            result2 = lambda2(temp)
+            result1 + result2
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(16.0)); // 6 + 10 = 16
+    }
+
+    #[test]
+    fn test_sequential_named_functions() {
+        let code = "
+            fn func1(x) { x + 1 }
+            temp = 5
+            fn func2(y) { y * 2 }
+            
+            result1 = func1(temp)
+            result2 = func2(temp)
+            result1 + result2
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(16.0)); // 6 + 10 = 16
+    }
+
+    #[test]
+    fn test_nested_lambda_calls() {
+        let code = "
+            add = ^(a, b) { a + b }
+            mul = ^(x, y) { x * y }
+            
+            add(mul(2, 3), mul(4, 5))
+        ";
+        let mut vm = VM::new();
+        let res = vm.interpret(code);
+        assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        assert_eq!(res.unwrap(), WeaveType::from(26.0)); // add(6, 20) = 26
     }
 }

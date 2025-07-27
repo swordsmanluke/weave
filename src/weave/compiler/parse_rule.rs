@@ -48,6 +48,9 @@ impl  ParseRule {
             // Product
             TokenType::Slash => ParseRuleBuilder::p_factor().infix(Compiler::binary).rule,
             TokenType::Star => ParseRuleBuilder::p_factor().infix(Compiler::binary).rule,
+            
+            // Lambda expression
+            TokenType::Caret => ParseRuleBuilder::p_none().prefix(Compiler::lambda).rule,
 
             // Literals
             TokenType::True => ParseRuleBuilder::p_none().prefix(Compiler::literal).rule,

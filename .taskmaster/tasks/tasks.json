@@ -263,11 +263,68 @@
         ],
         "priority": "medium",
         "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "Fix Lambda Sequential Call Bug",
+        "description": "Fix the stack indexing bug in test_lambda_with_intermediate_variables that causes stack index out of bounds errors",
+        "details": "",
+        "testStrategy": "",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Analyze Stack State During Sequential Lambda Calls",
+            "description": "Debug the exact stack state during test_lambda_with_intermediate_variables execution to understand why slot=3 is accessed when stack_len=3",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 16
+          },
+          {
+            "id": 2,
+            "title": "Investigate Stack Cleanup After Function Returns",
+            "description": "Check if the VM properly cleans up the stack after lambda function returns, ensuring correct stack state for subsequent calls",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 16
+          },
+          {
+            "id": 3,
+            "title": "Add Stack Debugging Instrumentation",
+            "description": "Add debug output to track stack state during Op::Call and Op::GetLocal operations specifically for the failing test case",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 16
+          },
+          {
+            "id": 4,
+            "title": "Fix Stack Management for Sequential Lambda Calls",
+            "description": "Implement the fix for proper stack management during sequential lambda calls based on debugging findings",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 16
+          },
+          {
+            "id": 5,
+            "title": "Verify Fix and Add Regression Tests",
+            "description": "Verify the fix resolves the test_lambda_with_intermediate_variables issue and add additional regression tests for similar edge cases",
+            "details": "",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 16
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-07-24T17:50:08.486Z",
-      "updated": "2025-07-27T01:54:24.596Z",
+      "updated": "2025-07-27T03:58:26.002Z",
       "description": "Tasks for master context"
     }
   }

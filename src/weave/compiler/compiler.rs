@@ -302,6 +302,19 @@ impl Compiler {
         let _ = self.function.chunk.disassemble(self.function.name.as_str());
     }
 
+    fn lambda_function(&mut self) {
+        log_debug!("Compiling lambda function implementation");
+        self.begin_scope();
+        self.consume(TokenType::LeftParen, "Expected '(' in lambda");
+        self.function_params();
+        self.consume(TokenType::RightParen, "Expected ')' after lambda params");
+        
+        self.consume(TokenType::LeftBrace, "Expected '{' before lambda body");
+        self.block();
+        log_info!("Lambda compilation complete");
+        let _ = self.function.chunk.disassemble("<lambda>");
+    }
+
     fn function_params(&mut self) {
         if !self.parser.cur_is(TokenType::RightParen) {
             loop {
@@ -570,6 +583,20 @@ impl Compiler {
         log_debug!("Compiling string literal", value = format!("{}", self.parser.previous()).as_str());
         let value = self.parser.previous().lexeme.lexeme().to_string();
         self.emit_string(value);
+    }
+
+    pub fn lambda(&mut self, _assign_mode: AssignMode) {
+        log_debug!("Compiling lambda expression");
+        
+        // Create new scope for lambda - same as named functions
+        let new_scope = self.scope.enter_scope();
+        let mut func_compiler = self.new_func_compiler("<lambda>".to_string(), new_scope);
+        func_compiler.lambda_function(); // compile lambda
+        
+        self.parser = func_compiler.parser;  // leap forward to the end of the lambda
+        
+        self.emit_closure(func_compiler.function, self.scope.depth as usize + 1);
+        self.scope.exit_scope();
     }
 
     fn emit_bytes(&mut self, bytes: Vec<u8>) {
