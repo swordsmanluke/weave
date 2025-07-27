@@ -22,6 +22,7 @@ pub struct Scope {
     stack: ScopeStack
 }
 
+#[derive(Clone)]
 struct InnerScope {
     pub locals: Vec<Local>,
     pub upvalues: Vec<Upvalue>
@@ -77,6 +78,9 @@ impl Scope {
     }
     
     pub fn upvals_at(&self, depth: usize) -> Vec<Upvalue> {
+        if depth >= self.stack.borrow().len() {
+            return vec![]; // Return empty if depth is out of bounds
+        }
         let scope = &self.stack.borrow()[depth];
         scope.upvalues.clone()
     }
@@ -223,4 +227,59 @@ impl Scope {
 
     pub fn enter_scope(&mut self) -> Self { self.incr() }
     pub fn exit_scope(&mut self) { self.decr(); }
+    
+    /// Create an isolated scope for function compilation that prevents
+    /// scope state accumulation while preserving necessary parent scopes for upvalues.
+    /// 
+    /// This method solves the sequential function compilation bug where scope state
+    /// from previous function compilations was incorrectly carrying over to subsequent
+    /// function compilations, causing local variable slot assignment errors.
+    /// 
+    /// # Behavior:
+    /// - For top-level functions (depth == 0): Creates a fresh scope to prevent accumulation
+    /// - For nested functions (depth > 0): Uses normal scope increment to preserve parent chain
+    /// 
+    /// # Background:
+    /// The original enter_scope() method used clone() which copied the entire scope stack
+    /// including accumulated state from all previous function compilations. This caused
+    /// issues where:
+    /// 1. Local variable slots were assigned based on previous function's final state
+    /// 2. Scope depth accumulated across sequential compilations
+    /// 3. Both named functions and lambda expressions were affected
+    /// 
+    /// This fix ensures proper compiler state isolation between sequential function
+    /// compilations while maintaining correct upvalue resolution for nested closures.
+    pub fn enter_function_scope(&mut self) -> Self {
+        if self.depth == 0 {
+            // Top-level function compilation - use fresh scope to prevent accumulation
+            let mut fresh_scope = Scope::new();
+            fresh_scope.depth = 1;
+            
+            // Only copy global scope for upvalue resolution
+            if !self.stack.borrow().is_empty() {
+                let global_scope = self.stack.borrow()[0].clone();
+                fresh_scope.stack.borrow_mut().push(global_scope);
+            }
+            
+            // Add fresh scope for this function
+            fresh_scope.stack.borrow_mut().push(InnerScope::new());
+            fresh_scope
+        } else {
+            // Nested function compilation - preserve parent for upvalues
+            self.incr() // Use normal scope increment to maintain parent chain
+        }
+    }
+    
+    // Debug methods to inspect scope state
+    pub fn debug_stack_len(&self) -> usize {
+        self.stack.borrow().len()
+    }
+    
+    pub fn debug_current_locals_len(&self) -> usize {
+        if self.depth as usize >= self.stack.borrow().len() {
+            0
+        } else {
+            self.stack.borrow()[self.depth as usize].locals.len()
+        }
+    }
 }

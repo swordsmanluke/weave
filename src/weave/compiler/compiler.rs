@@ -237,7 +237,14 @@ impl Compiler {
 
     fn add_local(&mut self, identifier: String) -> usize {
         // Create new variable
-        self.scope.declare_local(identifier)
+        let slot = self.scope.declare_local(identifier.clone());
+        log_info!("ADDED LOCAL VARIABLE", 
+            identifier = identifier.as_str(), 
+            assigned_slot = slot,
+            scope_depth = self.scope.depth,
+            total_locals = self.scope.debug_current_locals_len()
+        );
+        slot
     }
 
     pub fn statement(&mut self) {
@@ -275,18 +282,36 @@ impl Compiler {
 
     fn function_statement(&mut self) {
         log_debug!("Compiling function", current_token = format!("{:?}", self.parser.peek_type()).as_str());
+        log_info!("SCOPE STATE BEFORE function_statement", 
+            depth = self.scope.depth, 
+            stack_len = self.scope.debug_stack_len(),
+            current_locals = self.scope.debug_current_locals_len()
+        );
+        
         self.consume(TokenType::Identifier, "Expected function name");
         let fn_name = self.parser.previous();
         
-        let new_scope = self.scope.enter_scope();
+        // Use enter_function_scope() instead of enter_scope() to prevent scope state accumulation
+        // between sequential function compilations while preserving upvalue resolution
+        let new_scope = self.scope.enter_function_scope();
+        log_info!("SCOPE STATE AFTER enter_function_scope", 
+            depth = new_scope.depth, 
+            stack_len = new_scope.debug_stack_len()
+        );
+        
         let mut func_compiler = self.new_func_compiler(fn_name.lexeme.lexeme().to_string(), new_scope);
         func_compiler.function(); // compile function
 
         self.parser = func_compiler.parser;  // leap forward to the end of the function
 
-        self.emit_closure(func_compiler.function, self.scope.depth as usize + 1);
+        self.emit_closure(func_compiler.function, func_compiler.scope.depth as usize);
         self.set_named_variable(fn_name.lexeme.lexeme().to_string());
         self.scope.exit_scope();
+        
+        log_info!("SCOPE STATE AFTER function_statement complete", 
+            depth = self.scope.depth, 
+            stack_len = self.scope.debug_stack_len()
+        );
     }
 
     fn function(&mut self) {
@@ -587,16 +612,33 @@ impl Compiler {
 
     pub fn lambda(&mut self, _assign_mode: AssignMode) {
         log_debug!("Compiling lambda expression");
+        log_debug!("SCOPE STATE BEFORE lambda", 
+            depth = self.scope.depth, 
+            stack_len = self.scope.debug_stack_len(),
+            current_locals = self.scope.debug_current_locals_len()
+        );
         
-        // Create new scope for lambda - same as named functions
-        let new_scope = self.scope.enter_scope();
+        // Create new scope for lambda - use isolated function scope
+        // Use enter_function_scope() instead of enter_scope() to prevent scope state accumulation
+        // between sequential function compilations while preserving upvalue resolution
+        let new_scope = self.scope.enter_function_scope();
+        log_info!("SCOPE STATE AFTER enter_function_scope for lambda", 
+            depth = new_scope.depth, 
+            stack_len = new_scope.debug_stack_len()
+        );
+        
         let mut func_compiler = self.new_func_compiler("<lambda>".to_string(), new_scope);
         func_compiler.lambda_function(); // compile lambda
         
         self.parser = func_compiler.parser;  // leap forward to the end of the lambda
         
-        self.emit_closure(func_compiler.function, self.scope.depth as usize + 1);
+        self.emit_closure(func_compiler.function, func_compiler.scope.depth as usize);
         self.scope.exit_scope();
+        
+        log_debug!("SCOPE STATE AFTER lambda complete", 
+            depth = self.scope.depth, 
+            stack_len = self.scope.debug_stack_len()
+        );
     }
 
     fn emit_bytes(&mut self, bytes: Vec<u8>) {
@@ -683,5 +725,51 @@ mod tests {
         let mut compiler = Compiler::new("x = 3; puts x;", true);
         let result = compiler.compile();
         assert!(result.is_ok(), "Failed to compile");
+    }
+
+    #[test]
+    fn test_sequential_function_compilation_debug() {
+        // This test specifically targets the scope accumulation bug
+        let code = "
+            fn func1(a) { a + 1 }
+            fn func2(b) { b * 2 }
+            fn func3(c) { c - 1 }
+            
+            func1(5) + func2(3) + func3(8)
+        ";
+        let mut compiler = Compiler::new(code, true);
+        let result = compiler.compile();
+        assert!(result.is_ok(), "Failed to compile sequential functions: {:?}", result.unwrap_err());
+    }
+
+    #[test]
+    fn test_sequential_lambda_compilation_debug() {
+        // This test specifically targets the scope accumulation bug with lambdas
+        let code = "
+            lambda1 = ^(a) { a + 1 }
+            lambda2 = ^(b) { b * 2 }
+            lambda3 = ^(c) { c - 1 }
+            
+            lambda1(5) + lambda2(3) + lambda3(8)
+        ";
+        let mut compiler = Compiler::new(code, true);
+        let result = compiler.compile();
+        assert!(result.is_ok(), "Failed to compile sequential lambdas: {:?}", result.unwrap_err());
+    }
+
+    #[test]
+    fn test_mixed_function_lambda_compilation_debug() {
+        // This test mixes named functions and lambdas to see the interaction
+        let code = "
+            fn func1(a) { a + 1 }
+            lambda1 = ^(b) { b * 2 }
+            fn func2(c) { c - 1 }
+            lambda2 = ^(d) { d + 10 }
+            
+            func1(5) + lambda1(3) + func2(8) + lambda2(2)
+        ";
+        let mut compiler = Compiler::new(code, true);
+        let result = compiler.compile();
+        assert!(result.is_ok(), "Failed to compile mixed functions/lambdas: {:?}", result.unwrap_err());
     }
 }
