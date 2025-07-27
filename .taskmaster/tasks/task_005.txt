@@ -9,35 +9,3 @@ Implement upvalue closing mechanism that moves open upvalues to heap when parent
 
 # Test Strategy:
 Test upvalue persistence after parent function returns, verify heap allocation of closed upvalues, test shared upvalue access across multiple closures
-
-# Subtasks:
-## 1. Design Close Upvalues Method for VM [done]
-### Dependencies: None
-### Description: Create the core close_upvalues method in VM that handles the transition of upvalues from stack to heap storage
-### Details:
-Design and implement close_upvalues(last_slot: usize) method in vm.rs that iterates through open upvalues list, identifies upvalues pointing to stack slots >= last_slot, converts them from stack references to heap-allocated Rc<RefCell<WeaveValue>>, and updates the upvalue's internal state to reflect it's now closed. Method should handle the linked list of open upvalues maintained by the VM.
-
-## 2. Implement Stack-to-Heap Value Transfer Logic [done]
-### Dependencies: 5.1
-### Description: Create the mechanism to safely copy values from stack slots to heap storage when closing upvalues
-### Details:
-Implement the actual value transfer logic within close_upvalues. When an upvalue needs closing, clone the WeaveValue from its stack slot, wrap it in Rc<RefCell<WeaveValue>> for shared ownership, update the WeaveUpvalue enum to use the Closed variant with heap reference, and ensure the upvalue's location field is updated. Handle edge cases like already-closed upvalues and invalid stack references.
-
-## 3. Hook Upvalue Closing into Function Returns [done]
-### Dependencies: 5.1, 5.2
-### Description: Integrate close_upvalues calls at all function return points to ensure upvalues are closed when their scope ends
-### Details:
-Modify VM's Return opcode handler to call close_upvalues before popping the call frame. Pass the appropriate stack slot index (current frame's base) to close all upvalues in the returning function's scope. Also handle early returns and ensure close_upvalues is called in all code paths that exit a function, including error cases.
-
-## 4. Add Scope Exit Closing for Block Scopes [done]
-### Dependencies: 5.1, 5.2
-### Description: Implement upvalue closing for block-scoped variables when their defining block ends
-### Details:
-Add upvalue closing logic for block scope exits (not just function returns). Modify compiler to emit CloseUpvalue instructions at block boundaries where local variables go out of scope. Implement CloseUpvalue opcode in VM that calls close_upvalues with the appropriate stack boundary. Track which blocks contain captured variables to optimize and avoid unnecessary closing operations.
-
-## 5. Ensure Reference Semantics for Shared Upvalues [done]
-### Dependencies: 5.1, 5.2, 5.3, 5.4
-### Description: Validate and test that closed upvalues maintain proper reference semantics when shared between multiple closures
-### Details:
-Implement comprehensive testing to ensure closed upvalues work correctly when shared between multiple closures. Verify that modifications through one closure are visible to others sharing the same upvalue. Test scenarios with multiple closures capturing the same variable, closures created at different times sharing upvalues, and nested closures all referencing the same outer variable. Ensure Rc<RefCell> provides the expected shared mutable access.
-

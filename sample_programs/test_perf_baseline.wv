@@ -1,0 +1,13 @@
+# Minimal performance baseline test
+# Tests basic arithmetic in a loop without closures
+fn test_baseline() {
+    count = 0
+    i = 0
+    while i < 5000 {
+        count = count + 1
+        i = i + 1
+    }
+    puts count
+}
+
+test_baseline()

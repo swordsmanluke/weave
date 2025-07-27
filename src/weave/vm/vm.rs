@@ -14,7 +14,6 @@ pub struct VM {
     globals: HashMap<String, WeaveType>,
     last_value: WeaveType,
     open_upvalues: Vec<WeaveUpvalue>,
-    pub debug_mode: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -35,8 +34,8 @@ pub struct CallFrame {
 }
 
 impl CallFrame {
-    pub fn new(closure: FnClosure, slot: usize, debug_mode: bool) -> CallFrame {
-        let ip = IP::new(&closure.func.chunk.code, debug_mode);
+    pub fn new(closure: FnClosure, slot: usize) -> CallFrame {
+        let ip = IP::new(&closure.func.chunk.code);
         CallFrame { closure, ip, slot}
     }
 
@@ -50,8 +49,8 @@ impl CallStack {
         CallStack { frames: Vec::new() }
     }
     
-    pub fn push(&mut self, closure: FnClosure, slot: usize, debug_mode: bool) {
-        let frame = CallFrame::new(closure, slot, debug_mode);
+    pub fn push(&mut self, closure: FnClosure, slot: usize) {
+        let frame = CallFrame::new(closure, slot);
         self.frames.push(frame);
     }
     
@@ -132,14 +131,13 @@ impl VMError {
 pub type VMResult = Result<WeaveType, VMError>;
 
 impl VM {
-    pub fn new(debug_mode: bool) -> VM {
+    pub fn new() -> VM {
         let mut vm = VM {
             call_stack: CallStack::new(),
             stack: Vec::with_capacity(255),
             globals: HashMap::new(),
             last_value: WeaveType::None,
             open_upvalues: Vec::new(),
-            debug_mode,
         };
 
         NativeFnType::variants().iter().for_each(|fn_type| {
@@ -160,7 +158,7 @@ impl VM {
         let top_frame = FnClosure::new(Rc::new(func));
 
         self.stack.push(WeaveType::Closure(top_frame.clone()));
-        self.call_stack.push(top_frame, 0, self.debug_mode);
+        self.call_stack.push(top_frame, 0);
 
         self.debug("Interpreting...");
         
@@ -218,18 +216,11 @@ impl VM {
             
         let upvalue = if let Some(existing) = existing_upvalue {
             // Reuse existing upvalue
-            if self.debug_mode {
-                println!("Reusing existing upvalue for slot {}", absolute_slot);
-            }
             existing
         } else {
             // Create new upvalue and register it
             let new_upvalue = WeaveUpvalue::open(absolute_slot);
             self.open_upvalues.push(new_upvalue.clone());
-            if self.debug_mode {
-                println!("Creating local upvalue: current_frame_idx={}, current_frame_slot={}, uv.idx={}, absolute_slot={}", 
-                         current_frame_idx, current_frame_slot, uv.idx, absolute_slot);
-            }
             new_upvalue
         };
         
@@ -247,9 +238,6 @@ impl VM {
         }
         
         let source_upvalue = current_upvalues[uv.idx as usize].clone();
-        if self.debug_mode {
-            println!("Creating remote upvalue: source_idx={}, upvalue={:?}", uv.idx, source_upvalue);
-        }
         closure.upvalues.push(source_upvalue);
     }
     
@@ -261,14 +249,6 @@ impl VM {
         // Close all open upvalues that reference stack slots at or above last_slot
         let mut indices_to_close = Vec::new();
         
-        if self.debug_mode {
-            println!("close_upvalues: last_slot={}, open_upvalues={}", last_slot, self.open_upvalues.len());
-            for (i, upvalue) in self.open_upvalues.iter().enumerate() {
-                if upvalue.is_open() {
-                    println!("  open upvalue[{}]: slot={}", i, upvalue.get_stack_index());
-                }
-            }
-        }
         
         for (i, upvalue) in self.open_upvalues.iter().enumerate() {
             if upvalue.is_open() && upvalue.get_stack_index() >= last_slot {
@@ -277,10 +257,6 @@ impl VM {
         }
         
         for i in indices_to_close.iter().rev() {
-            if self.debug_mode {
-                let upvalue = &self.open_upvalues[*i];
-                println!("Closing upvalue at slot {} with value: {}", upvalue.get_stack_index(), upvalue.value(self));
-            }
             // Close the upvalue - this updates the shared reference for all closures
             // We need to clone to avoid borrowing issues
             let mut upvalue_clone = self.open_upvalues[*i].clone();
@@ -296,9 +272,9 @@ impl VM {
         self.call_stack.get_constant(idx)
     }
 
-    fn _push(&mut self, value: OpResult) -> VMResult {
+    fn _push(&mut self, value: OpResult) -> Result<(), VMError> {
         // TODO: This is the where "malloc" would be in C
-        self.debug(&format!("PUSH: {:?}", value));
+        // self.debug(&format!("PUSH: {:?}", value));
         // If we encountered an error in performing an action, we may need to raise an error.
         // We can handle most of that here to make everyone else' lives easier - just return
         // whatever val/error you have and when we try to push it to the stack, determine if
@@ -306,7 +282,7 @@ impl VM {
         match value {
             Ok(v) => {
                 self.stack.push(v);
-                Ok(self._peek())
+                Ok(())
             }
             Err(msg) => {
                 let line = self.call_stack.line_number_at(-1);
@@ -318,12 +294,16 @@ impl VM {
     fn _pop(&mut self) -> WeaveType {
         // TODO: This is _nearly_ where the "free" would be in C - basically as soon as the
         //       value returned here is dropped, it should be freed
-        self.debug(&format!("POP: {:?}", self._peek()));
+        // self.debug(&format!("POP: {:?}", self._peek()));
         self.stack.pop().unwrap_or(WeaveType::None)
     }
 
     fn _peek(&self) -> WeaveType {
         self.stack.last().unwrap_or(&WeaveType::None).clone()
+    }
+    
+    fn _peek_ref(&self) -> &WeaveType {
+        self.stack.last().unwrap_or(&WeaveType::None)
     }
 
     fn _poppop(&mut self) -> [WeaveType; 2] {
@@ -342,7 +322,7 @@ impl VM {
             // until ip offset > chunk size
             let op = self.call_stack.next_op();
 
-            self.debug(&format!("EVAL({:?})", op));
+            // self.debug(&format!("EVAL({:?})", op));
             match op {
                 Op::INVALID(_) => {
                     return Err(VMError::InvalidChunk);
@@ -363,7 +343,7 @@ impl VM {
                         return Ok(result);
                     }
                     
-                    self.debug(&format!("Returning: {} from depth {}", result, self.stack.len()));
+                    // self.debug(&format!("Returning: {} from depth {}", result, self.stack.len()));
                     self._push(Ok(result))?;
                 },
                 Op::POP => { self._pop(); },
@@ -411,8 +391,8 @@ impl VM {
                     self.debug(&format!("Taking {} @ {}", func, func_slot));
                     match func {
                         WeaveType::Closure(f) => {
-                            self.debug(&format!("Calling {} with {} arguments", f, arg_count));
-                            self.call_stack.push(f.clone(), func_slot, self.debug_mode);
+                            // self.debug(&format!("Calling {} with {} arguments", f, arg_count));
+                            self.call_stack.push(f.clone(), func_slot);
                             self.call(f.clone(), arg_count)?;
                         }
                         WeaveType::NativeFn(f) => {
@@ -423,7 +403,7 @@ impl VM {
                             } else {
                                 vec![]
                             };
-                            self.debug(&format!("Calling {} with {} arguments", f, arg_count));
+                            // self.debug(&format!("Calling {} with {} arguments", f, arg_count));
 
                             (f.func)(args)?;
                         }
@@ -434,29 +414,29 @@ impl VM {
                 }
                 Op::SetLocal => {
                     let slot = self.call_stack.next_slot();
-                    self.stack[slot] = self._peek();
+                    let value = self._pop();
+                    // Ensure stack is large enough for the slot
+                    while self.stack.len() <= slot {
+                        self.stack.push(WeaveType::None);
+                    }
+                    self.stack[slot] = value;
                 }
                 Op::GetLocal => {
                     let slot = self.call_stack.next_slot();
-                    if self.debug_mode {
-                        println!("GetLocal DEBUG: slot={}, stack_len={}, frame_slot={}", 
-                                slot, self.stack.len(), self.current_frame().slot);
-                    }
                     if slot >= self.stack.len() {
                         return Err(VMError::RuntimeError { 
                             line: self.call_stack.line_number_at(-1), 
                             msg: format!("Stack index out of bounds: slot={}, stack_len={}", slot, self.stack.len()) 
                         });
                     }
-                    self._push(Ok(self.stack[slot].clone()))?;
+                    // Use reference to avoid cloning during push
+                    let value = &self.stack[slot];
+                    self.stack.push(value.clone());
                 }
                 Op::GetUpvalue => {
                     let slot = self.call_stack.next_byte() as usize;
                     let upvalue = self.call_stack.cur_frame().closure.upvalues[slot].clone();
                     let value = upvalue.value(self);
-                    if self.debug_mode {
-                        println!("GetUpvalue DEBUG: slot={}, upvalue={:?}, value={:?}", slot, upvalue, value);
-                    }
                     self._push(Ok(value))?;
                 }
                 Op::SetUpvalue => {
@@ -546,7 +526,7 @@ impl VM {
                 Op::PRINT => {
                     // Don't remove the top value from the stack - printing a value evaluates
                     // to the value itself. e.g. "print(1) == 1"
-                    let value = self._peek();
+                    let value = self._peek_ref();
                     println!("{}", green(&format!("{}", value)));
                     log_debug!("VM print instruction", value = format!("{}", value).as_str(), stack_depth = self.stack.len());
                 }
@@ -556,7 +536,7 @@ impl VM {
                 }
                 Op::JumpIfFalse => {
                     let jmp_offset = self.call_stack.next_u16();
-                    if !self._peek().truthy() {
+                    if !self._peek_ref().truthy() {
                         self.call_stack.jump(jmp_offset);
                     }
                 }
@@ -623,7 +603,7 @@ mod tests {
 
     #[test]
     fn test_basic_math() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("5 + 2 * 3");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(11.0));
@@ -631,7 +611,7 @@ mod tests {
 
     #[test]
     fn test_parenthesis() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("(5 + 2) * 3");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(21.0));
@@ -639,7 +619,7 @@ mod tests {
 
     #[test]
     fn test_negate() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("-5");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(-5.0));
@@ -647,7 +627,7 @@ mod tests {
 
     #[test]
     fn test_string_literal() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("\"hello\"");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from("hello"));
@@ -655,7 +635,7 @@ mod tests {
     
     #[test]
     fn test_var_addition() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("x = 5\nx + 2");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(7.0));
@@ -663,7 +643,7 @@ mod tests {
 
     #[test]
     fn test_puts_statement() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("puts \"hello\";");
         assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
@@ -671,7 +651,7 @@ mod tests {
 
     #[test]
     fn test_using_var() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("x = 5; puts x;");
         assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
@@ -679,7 +659,7 @@ mod tests {
 
     #[test]
     fn test_declaring_var() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("x = 5");
         assert_eq!(vm.stack.len(), 0);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
@@ -693,14 +673,14 @@ mod tests {
     
     #[test]
     fn test_invalid_assignment_doesnt_parse() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("a= 1; a + b = 5");
         assert!(res.is_err());
     }
 
     #[test]
     fn test_shadowing_self() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("
         a = 1;  # Global var
         fn foo() {
@@ -716,14 +696,14 @@ mod tests {
 
     #[test]
     fn test_bad_initializer() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("a = a");
         assert!(res.is_err());
     }
 
     #[test]
     fn test_local_variables() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("fn test() { x = 1; x + 3 } test()");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(4.0));
@@ -731,7 +711,7 @@ mod tests {
 
     #[test]
     fn test_nested_scopes() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         // Note: Updated to use functions instead of bare blocks 
         // This test now verifies closure variable capture instead of nested blocks
         let res = vm.interpret("fn outer() { x = 2; fn inner() { x = x + 3; x } inner() } outer()");
@@ -741,7 +721,7 @@ mod tests {
 
     #[test]
     fn test_if_true_condition() {
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret("fn test() {
         a = 1;
         if (true) { a = a + 1 }
@@ -757,7 +737,7 @@ mod tests {
         if false { a = a + 1 }
         a
         } test()";
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(1.0));
@@ -774,7 +754,7 @@ mod tests {
         }
         a
         } test()";
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(3.0));
@@ -790,7 +770,7 @@ mod tests {
                 puts 2
             }
         ";
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
     }
@@ -804,7 +784,7 @@ mod tests {
             }
             a
         } test()";
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(3.0));
@@ -818,7 +798,7 @@ mod tests {
             }
             add(-1, 4)
         ";
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(3.0));
@@ -838,7 +818,7 @@ mod tests {
             c = make_counter()
             c()
         ";
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(1.0));
@@ -862,7 +842,7 @@ mod tests {
             }
             outer()
         ";
-        let mut vm = VM::new(true);
+        let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
         assert_eq!(res.unwrap(), WeaveType::from(10.0));

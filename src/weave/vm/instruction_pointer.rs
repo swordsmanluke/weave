@@ -10,7 +10,7 @@ pub(crate) struct IP {
 /// pointer, which should be more performant. Still, this actually runs code,
 /// so I can't complain.
 impl IP {
-    pub fn new(bytecode: &Vec<u8>, _debug_mode: bool) -> IP {
+    pub fn new(bytecode: &Vec<u8>) -> IP {
         IP {
             ip: 0,
             bytecode: bytecode.clone(),

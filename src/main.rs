@@ -63,7 +63,7 @@ fn main() {
 
 fn run_file(path: &str) {
     let file_contents = std::fs::read_to_string(path).unwrap();
-    let mut vm = VM::new(false);
+    let mut vm = VM::new();
     let res = vm.interpret(&file_contents);
     match res {
         Ok(_) => {},

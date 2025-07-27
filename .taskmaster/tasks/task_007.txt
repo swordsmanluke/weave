@@ -1,6 +1,6 @@
 # Task ID: 7
 # Title: Add Recursive Closure Detection and Error Handling
-# Status: pending
+# Status: cancelled
 # Dependencies: 4
 # Priority: medium
 # Description: Implement detection and proper error handling for recursive closure attempts
@@ -9,35 +9,3 @@ Add recursive closure detection to compiler and VM. Implement checks during clos
 
 # Test Strategy:
 Test direct recursive closure attempts, test indirect recursive closures through multiple levels, verify clear error messages, test performance impact of cycle detection
-
-# Subtasks:
-## 1. Design Recursive Closure Detection Data Structures [pending]
-### Dependencies: None
-### Description: Create data structures to track closure relationships and detect cycles
-### Details:
-Design a closure dependency graph structure in the compiler to track which closures capture which variables. Create a CaptureGraph struct that maps closure IDs to their captured variables and parent closures. Add fields to track closure nesting depth and parent-child relationships. Implement a visitor pattern to traverse the closure graph during compilation. Add necessary fields to Compiler struct to maintain this graph during the compilation phase.
-
-## 2. Implement Compile-Time Cycle Detection Algorithm [pending]
-### Dependencies: 7.1
-### Description: Add cycle detection during closure compilation to catch direct recursive captures
-### Details:
-Implement a depth-first search (DFS) based cycle detection algorithm in the compiler. When a closure is being compiled and captures a variable, check if that variable refers to the closure itself or any of its ancestors. Use the CaptureGraph to traverse the dependency chain. Mark visited nodes to detect cycles. If a cycle is detected, generate a compile error with clear message indicating the recursive closure attempt. Handle cases where the recursion happens through variable assignments.
-
-## 3. Add Runtime Upvalue Chain Validation [pending]
-### Dependencies: 7.1
-### Description: Implement runtime checks for indirect recursive closure creation through upvalues
-### Details:
-Add validation logic in the VM's closure creation path to detect runtime recursive captures that couldn't be caught at compile time. When creating a closure with upvalues, traverse the upvalue chain to ensure no circular references exist. Implement this in the OP_CLOSURE opcode handler. Check each upvalue to see if it eventually points back to the closure being created. Use a HashSet to track visited upvalues during traversal. Raise a VMError with descriptive message if cycle detected.
-
-## 4. Create Specialized Error Types and Messages [pending]
-### Dependencies: 7.2, 7.3
-### Description: Design clear error types and messages for recursive closure scenarios
-### Details:
-Create new error variants in CompilerError and VMError enums specifically for recursive closures. Add RecursiveClosure variant with fields for closure name, recursion path, and line number. Implement Display trait to generate user-friendly error messages that explain the recursion problem and suggest fixes. Include the chain of closures involved in the cycle. Format messages to show: 'Recursive closure detected: closure 'f' captures itself through chain: f -> g -> h -> f'. Add source location information when available.
-
-## 5. Optimize Cycle Detection Performance [pending]
-### Dependencies: 7.2, 7.3, 7.4
-### Description: Optimize the cycle detection to minimize overhead for normal closure creation
-### Details:
-Profile the cycle detection implementation and optimize hot paths. Implement lazy checking that only performs full cycle detection when certain patterns are detected (e.g., closure capturing variables from same scope). Add caching to avoid redundant checks for the same closure patterns. Use bit flags to quickly identify closures that need cycle checking. Implement depth limits to prevent excessive traversal in pathological cases. Ensure the common case of non-recursive closures has minimal overhead. Consider using Tarjan's algorithm for efficient strongly connected component detection if needed.
-

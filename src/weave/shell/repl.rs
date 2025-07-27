@@ -4,7 +4,7 @@ use rustyline::{Editor, Config, Cmd, KeyEvent, Modifiers, KeyCode};
 use std::io::{self, Write};
 
 pub fn repl() {
-    let mut vm = VM::new(false);
+    let mut vm = VM::new();
     let config = Config::builder().auto_add_history(true).build();
     let mut rl: Editor<(),_> = Editor::with_config(config).unwrap();
     let mut buffer = String::new();

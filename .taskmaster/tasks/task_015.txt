@@ -1,0 +1,11 @@
+# Task ID: 15
+# Title: Create comprehensive test suite for recursive function calls
+# Status: done
+# Dependencies: 11, 12, 13, 14
+# Priority: medium
+# Description: Develop a complete test suite covering recursive function calls including factorial, fibonacci, binary expressions with function calls, and nested function calls to verify all recent bug fixes and implementations work correctly.
+# Details:
+Create comprehensive test suite in src/weave/vm/vm.rs covering multiple recursive function call scenarios. Implement test_recursive_factorial() testing basic factorial recursion (5! = 120), test_recursive_fibonacci() for fibonacci sequence calculation, test_binary_expressions_with_function_calls() verifying function calls work correctly within binary operations (factorial(3) + fibonacci(4)), and test_nested_recursive_calls() for deeply nested scenarios. Each test should compile Weave code, execute in VM, and verify correct results. Include edge cases like recursive calls with upvalue capture, recursive closures (where allowed), and recursive calls mixed with local variable scoping. Add performance tests for deep recursion to verify stack management. Tests should validate fixes from tasks 11-14 including proper Op::Call generation in binary expressions, correct stack indexing for multiple call frames, and proper local variable compilation in recursive contexts.
+
+# Test Strategy:
+Create test cases for factorial(0), factorial(5), fibonacci(0-10), mixed arithmetic with recursive calls like factorial(3) + fibonacci(4) * 2, deeply nested recursive scenarios up to reasonable stack limits. Verify bytecode generation includes proper Op::Call instructions. Test recursive calls with local variables, upvalue capture scenarios, and integration with closure functionality. Add negative test cases for stack overflow protection. All tests must pass consistently and demonstrate the recursive call fixes are working correctly across different function call patterns.

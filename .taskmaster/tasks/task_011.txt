@@ -1,0 +1,11 @@
+# Task ID: 11
+# Title: Fix failing unit test: test_compile_local_variables
+# Status: done
+# Dependencies: 1, 2, 3
+# Priority: high
+# Description: Investigate and fix the test_compile_local_variables unit test that is failing with assertion error '1 != 17' in compiler.rs:658, addressing local variable compilation/scoping issues introduced during closure implementation.
+# Details:
+Debug the test_compile_local_variables test failure by examining the assertion at compiler.rs:658 to understand why the expected value (1) differs from actual (17). Review recent closure implementation changes in tasks 1-6 that may have affected local variable scoping logic. Check if the compiler's local variable tracking, scope management, or bytecode generation for non-closure scenarios was inadvertently modified. Examine the test case to understand what specific local variable compilation behavior is being validated. Restore proper local variable compilation while preserving closure functionality. Focus on ensuring local variable indices, scope resolution, and bytecode generation work correctly for simple variable declarations and usage that don't involve closures.
+
+# Test Strategy:
+Run the specific failing test in isolation to reproduce the error. Add debug prints around compiler.rs:658 to understand the assertion values. Create minimal test cases for basic local variable scenarios to isolate the issue. Verify all existing local variable tests pass after the fix. Ensure closure-related tests (from tasks 1-6) continue to pass, confirming the fix doesn't break closure functionality. Add regression tests if the root cause reveals gaps in test coverage.

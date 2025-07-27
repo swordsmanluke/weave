@@ -89,7 +89,7 @@
         "dependencies": [
           4
         ],
-        "status": "pending",
+        "status": "cancelled",
         "subtasks": []
       },
       {
@@ -103,7 +103,62 @@
           6
         ],
         "status": "in-progress",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Profile Performance Bottlenecks",
+            "description": "Identify specific performance bottlenecks in closure hot loop execution",
+            "details": "Use profiling tools to identify where the 55-second execution time for 5K iterations is being spent. Focus on upvalue access patterns, clone operations, and RefCell borrowing overhead. Create performance baseline measurements.",
+            "status": "in-progress",
+            "dependencies": [],
+            "parentTaskId": 8
+          },
+          {
+            "id": 2,
+            "title": "Optimize Upvalue Access Patterns",
+            "description": "Reduce clone operations and improve upvalue access efficiency",
+            "details": "Minimize .clone() operations in GetUpvalue and SetUpvalue opcodes. Implement borrowing-based access patterns where possible. Optimize the upvalue.value() and upvalue.set() methods to avoid unnecessary cloning of WeaveType objects. Focus on hot-loop paths in closure calls.",
+            "status": "pending",
+            "dependencies": [
+              "8.1"
+            ],
+            "parentTaskId": 8
+          },
+          {
+            "id": 3,
+            "title": "Optimize RefCell Borrowing Patterns",
+            "description": "Reduce RefCell borrowing overhead in hot loops",
+            "details": "Optimize Rc<RefCell<>> usage in closed upvalues to minimize borrow() and borrow_mut() calls in hot loops. Implement batched operations where possible. Consider using unsafe patterns or alternative data structures for performance-critical paths while maintaining safety.",
+            "status": "pending",
+            "dependencies": [
+              "8.1"
+            ],
+            "parentTaskId": 8
+          },
+          {
+            "id": 4,
+            "title": "Optimize Memory Management",
+            "description": "Improve Rc/RefCell cleanup and memory allocation patterns",
+            "details": "Implement efficient reference counting cleanup for unused upvalues. Optimize memory allocation patterns to reduce heap pressure. Consider upvalue pooling or reuse strategies. Ensure upvalue resolution is O(1) after initial capture setup.",
+            "status": "pending",
+            "dependencies": [
+              "8.2",
+              "8.3"
+            ],
+            "parentTaskId": 8
+          },
+          {
+            "id": 5,
+            "title": "Performance Validation and Benchmarking",
+            "description": "Validate performance improvements meet 10K iteration requirement",
+            "details": "Create comprehensive benchmarks for closure performance. Test 10K iteration requirement with target execution time under 10 seconds. Implement performance regression tests. Compare before/after metrics for clone operations, memory usage, and execution time. Document final performance characteristics.",
+            "status": "pending",
+            "dependencies": [
+              "8.4"
+            ],
+            "parentTaskId": 8
+          }
+        ]
       },
       {
         "id": 9,
@@ -138,7 +193,7 @@
         "description": "Investigate and fix the test_compile_local_variables unit test that is failing with assertion error '1 != 17' in compiler.rs:658, addressing local variable compilation/scoping issues introduced during closure implementation.",
         "details": "Debug the test_compile_local_variables test failure by examining the assertion at compiler.rs:658 to understand why the expected value (1) differs from actual (17). Review recent closure implementation changes in tasks 1-6 that may have affected local variable scoping logic. Check if the compiler's local variable tracking, scope management, or bytecode generation for non-closure scenarios was inadvertently modified. Examine the test case to understand what specific local variable compilation behavior is being validated. Restore proper local variable compilation while preserving closure functionality. Focus on ensuring local variable indices, scope resolution, and bytecode generation work correctly for simple variable declarations and usage that don't involve closures.",
         "testStrategy": "Run the specific failing test in isolation to reproduce the error. Add debug prints around compiler.rs:658 to understand the assertion values. Create minimal test cases for basic local variable scenarios to isolate the issue. Verify all existing local variable tests pass after the fix. Ensure closure-related tests (from tasks 1-6) continue to pass, confirming the fix doesn't break closure functionality. Add regression tests if the root cause reveals gaps in test coverage.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1,
           2,
@@ -153,7 +208,7 @@
         "description": "Debug and fix the test_nested_scopes unit test that is failing with 'index out of bounds' panic in scope.rs:75 during scope stack management operations.",
         "details": "Investigate the panic occurring at scope.rs:75 where an index out of bounds error suggests the scope stack is empty when trying to access an element. The test involves nested scopes with variable shadowing ({ x = 2; { x = 1; x = x + 3 } puts x; }) which should result in the outer x (value 2) being printed. Debug the scope stack management in the compiler's scope.rs module to ensure proper push/pop operations for nested block scopes. Check if recent closure implementation changes affected the scope stack initialization or management. Verify that scope_depth tracking correctly handles nested blocks and that local variable resolution works properly in shadowing scenarios. Examine if the compiler properly maintains separate scopes for nested blocks and correctly resolves variable names to the appropriate scope level. Add bounds checking and proper error handling for scope stack operations.",
         "testStrategy": "Run the failing test in isolation with debug output to reproduce the exact panic. Add debug prints to scope.rs around line 75 to track scope stack state during nested scope operations. Create minimal test cases for basic nested scopes without closures to isolate the issue. Verify the scope stack correctly pushes new scopes on block entry and pops on block exit. Test variable shadowing scenarios to ensure inner variables don't affect outer scope resolution. Confirm that after the fix, the test correctly prints the outer x value (2) and all existing scope-related tests continue to pass.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           1,
           2,
@@ -199,7 +254,7 @@
         "description": "Develop a complete test suite covering recursive function calls including factorial, fibonacci, binary expressions with function calls, and nested function calls to verify all recent bug fixes and implementations work correctly.",
         "details": "Create comprehensive test suite in src/weave/vm/vm.rs covering multiple recursive function call scenarios. Implement test_recursive_factorial() testing basic factorial recursion (5! = 120), test_recursive_fibonacci() for fibonacci sequence calculation, test_binary_expressions_with_function_calls() verifying function calls work correctly within binary operations (factorial(3) + fibonacci(4)), and test_nested_recursive_calls() for deeply nested scenarios. Each test should compile Weave code, execute in VM, and verify correct results. Include edge cases like recursive calls with upvalue capture, recursive closures (where allowed), and recursive calls mixed with local variable scoping. Add performance tests for deep recursion to verify stack management. Tests should validate fixes from tasks 11-14 including proper Op::Call generation in binary expressions, correct stack indexing for multiple call frames, and proper local variable compilation in recursive contexts.",
         "testStrategy": "Create test cases for factorial(0), factorial(5), fibonacci(0-10), mixed arithmetic with recursive calls like factorial(3) + fibonacci(4) * 2, deeply nested recursive scenarios up to reasonable stack limits. Verify bytecode generation includes proper Op::Call instructions. Test recursive calls with local variables, upvalue capture scenarios, and integration with closure functionality. Add negative test cases for stack overflow protection. All tests must pass consistently and demonstrate the recursive call fixes are working correctly across different function call patterns.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           11,
           12,
@@ -212,7 +267,7 @@
     ],
     "metadata": {
       "created": "2025-07-24T17:50:08.486Z",
-      "updated": "2025-07-26T19:09:19.802Z",
+      "updated": "2025-07-27T01:54:24.596Z",
       "description": "Tasks for master context"
     }
   }

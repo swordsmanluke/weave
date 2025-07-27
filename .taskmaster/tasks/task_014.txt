@@ -1,0 +1,11 @@
+# Task ID: 14
+# Title: Fix stack indexing bug in Op::GetLocal causing index out of bounds panics
+# Status: done
+# Dependencies: 1, 2, 3, 5
+# Priority: high
+# Description: Debug and fix the stack indexing calculation in Op::GetLocal instruction where frame.slot + relative_slot produces invalid stack indices, causing runtime panics when functions have multiple call frames.
+# Details:
+Investigate the stack indexing logic in vm.rs for the Op::GetLocal instruction execution. The current calculation `frame.slot + relative_slot` is producing indices that exceed the stack bounds when multiple function call frames are active. This suggests the relative slot calculation or frame slot base address is incorrect for nested function calls. Examine how call frames are managed and how local variable slots are calculated relative to the current frame's base. Review the compiler's local variable slot assignment in compiler.rs to ensure consistency with VM expectations. Check if recent closure implementation changes affected the frame slot calculations. The fix likely involves correcting either the frame.slot base calculation or the relative_slot computation to ensure valid stack indices. Add bounds checking and better error handling for stack access operations to prevent panics and provide meaningful error messages.
+
+# Test Strategy:
+Create test cases that reproduce the index out of bounds panic with multiple nested function calls. Add unit tests for stack indexing calculations with various call frame depths. Test scenarios with local variables in nested functions, recursive calls, and closure calls that trigger multiple frames. Add debug assertions to verify stack indices are within bounds before access. Create integration tests that combine local variable access with the fixed closure functionality from previous tasks. Verify that all existing local variable tests continue to pass after the fix.

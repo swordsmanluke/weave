@@ -1,0 +1,11 @@
+# Task ID: 12
+# Title: Fix failing unit test: test_nested_scopes
+# Status: done
+# Dependencies: 1, 2, 3
+# Priority: high
+# Description: Debug and fix the test_nested_scopes unit test that is failing with 'index out of bounds' panic in scope.rs:75 during scope stack management operations.
+# Details:
+Investigate the panic occurring at scope.rs:75 where an index out of bounds error suggests the scope stack is empty when trying to access an element. The test involves nested scopes with variable shadowing ({ x = 2; { x = 1; x = x + 3 } puts x; }) which should result in the outer x (value 2) being printed. Debug the scope stack management in the compiler's scope.rs module to ensure proper push/pop operations for nested block scopes. Check if recent closure implementation changes affected the scope stack initialization or management. Verify that scope_depth tracking correctly handles nested blocks and that local variable resolution works properly in shadowing scenarios. Examine if the compiler properly maintains separate scopes for nested blocks and correctly resolves variable names to the appropriate scope level. Add bounds checking and proper error handling for scope stack operations.
+
+# Test Strategy:
+Run the failing test in isolation with debug output to reproduce the exact panic. Add debug prints to scope.rs around line 75 to track scope stack state during nested scope operations. Create minimal test cases for basic nested scopes without closures to isolate the issue. Verify the scope stack correctly pushes new scopes on block entry and pops on block exit. Test variable shadowing scenarios to ensure inner variables don't affect outer scope resolution. Confirm that after the fix, the test correctly prints the outer x value (2) and all existing scope-related tests continue to pass.

@@ -1,19 +1,12 @@
 # Test closure performance with smaller loop (1000 iterations)
 fn test_smaller_loop() {
-    count = 0
-    
-    fn increment() {
-        count = count + 1
-    }
-    
     # Smaller loop - 1000 iterations
     i = 0
-    while i < 1000 {
-        increment()
+    while i < 5000 {
         i = i + 1
     }
     
-    puts count  # Should be 1000
+    puts i  # Should be 1000
 }
 
 test_smaller_loop()

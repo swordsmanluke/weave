@@ -1,0 +1,12 @@
+# Test 10K iterations for performance validation
+fn test_10k() {
+    count = 0
+    i = 0
+    while i < 10000 {
+        count = count + 1
+        i = i + 1
+    }
+    puts count
+}
+
+test_10k()
