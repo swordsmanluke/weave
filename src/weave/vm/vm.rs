@@ -439,12 +439,13 @@ impl VM {
                             self.call_stack.push(f.clone(), func_slot);
                         }
                         WeaveType::NativeFn(f) => {
+                            // Use slice instead of Vec allocation for better performance
                             let args = if arg_count > 0 {
                                 let last_arg = self.stack.len() - 1;
                                 let first_arg = last_arg - arg_count;
-                                self.stack[first_arg..last_arg].to_vec()
+                                &self.stack[first_arg..last_arg]
                             } else {
-                                vec![]
+                                &[]
                             };
                             (f.func)(args)?;
                         }

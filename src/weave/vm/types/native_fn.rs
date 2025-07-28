@@ -27,7 +27,7 @@ impl NativeFnType {
 pub struct NativeFn {
     pub name: NativeFnType,
     pub arity: usize,
-    pub func: fn(Vec<WeaveType>) -> Result<WeaveType, VMError>,
+    pub func: fn(&[WeaveType]) -> Result<WeaveType, VMError>,
 }
 
 impl NativeFn {
@@ -80,7 +80,7 @@ impl Display for NativeFnType {
     }
 }
 
-fn print(args: Vec<WeaveType>) -> Result<WeaveType, VMError> {
+fn print(args: &[WeaveType]) -> Result<WeaveType, VMError> {
     let printable = args
         .iter()
         .map(|a| a.to_string())
@@ -91,13 +91,13 @@ fn print(args: Vec<WeaveType>) -> Result<WeaveType, VMError> {
     Ok(WeaveType::None)
 }
 
-fn input(_args: Vec<WeaveType>) -> Result<WeaveType, VMError> {
+fn input(_args: &[WeaveType]) -> Result<WeaveType, VMError> {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).unwrap();
     Ok(WeaveType::String(input.into()))
 }
 
-fn clock(_args: Vec<WeaveType>) -> Result<WeaveType, VMError> {
+fn clock(_args: &[WeaveType]) -> Result<WeaveType, VMError> {
     // Get system time (ms since epoch)
     let time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -106,7 +106,7 @@ fn clock(_args: Vec<WeaveType>) -> Result<WeaveType, VMError> {
     Ok(WeaveType::Number((time as u64).into()))
 }
 
-fn read_file(args: Vec<WeaveType>) -> Result<WeaveType, VMError> {
+fn read_file(args: &[WeaveType]) -> Result<WeaveType, VMError> {
     let path = args[0].to_string();
     let contents = std::fs::read_to_string(path).unwrap();
     // TODO: this should be a Container of bytes which we can convert to a Weave String
@@ -114,7 +114,7 @@ fn read_file(args: Vec<WeaveType>) -> Result<WeaveType, VMError> {
     Ok(WeaveType::String(contents.into()))
 }
 
-fn write_file(args: Vec<WeaveType>) -> Result<WeaveType, VMError> {
+fn write_file(args: &[WeaveType]) -> Result<WeaveType, VMError> {
     let path = args[0].to_string();
     let contents = args[1].to_string();
     std::fs::write(path, contents).unwrap();
