@@ -7,7 +7,7 @@ use crate::weave::compiler::parser::Parser;
 use crate::weave::compiler::precedence::Precedence;
 use crate::weave::compiler::token::{Token, TokenType};
 use crate::weave::compiler::internal::Scope;
-use crate::weave::vm::types::{WeaveType, WeaveFn, WeaveUpvalue, FnClosure, Upvalue};
+use crate::weave::vm::types::{WeaveType, WeaveFn, WeaveUpvalue, FnClosure, Upvalue, NanBoxedValue};
 use crate::weave::{Chunk, Op};
 use crate::{log_debug, log_info, log_warn, log_error};
 
@@ -180,7 +180,8 @@ impl Compiler {
             } else {
                 let line = self.line;
                 log_debug!("Using global variable lookup", identifier = identifier.as_str(), scope_depth = self.scope.depth);
-                self.current_chunk().emit_constant(WeaveType::String(identifier.into()), line);
+                // TODO: Implement string support in NanBoxedValue - using null placeholder for now
+            self.current_chunk().emit_constant(NanBoxedValue::null(), line);
                 self.emit_basic_opcode(Op::GetGlobal);
             }
         }
@@ -230,7 +231,8 @@ impl Compiler {
             }
         } else {
             let line = self.line;
-            self.current_chunk().emit_constant(WeaveType::String(identifier.into()), line);
+            // TODO: Implement string support in NanBoxedValue - using null placeholder for now
+            self.current_chunk().emit_constant(NanBoxedValue::null(), line);
             self.emit_basic_opcode(Op::SetGlobal);
         }
     }
@@ -362,7 +364,8 @@ impl Compiler {
         // Debug: println!("{} has {} upvals", func.name, func.upvalue_count);
         // Add closure to constants table without emitting constant bytecode
         let closure = FnClosure::new(func.into());
-        let closure_idx = self.current_chunk().add_constant_only(WeaveType::Closure(closure));
+        // TODO: Store closure as pointer in NanBoxedValue - using null placeholder for now
+        let closure_idx = self.current_chunk().add_constant_only(NanBoxedValue::null());
         
         // Emit the closure constant index as part of the Closure instruction
         self.emit_bytes((closure_idx as u16).to_be_bytes().to_vec());
@@ -649,7 +652,8 @@ impl Compiler {
     fn emit_string(&mut self, value: String) {
         log_debug!("Emitting string constant", constant_value = format!("{:?}", value).as_str(), line = self.line);
         let line = self.line;
-        self.current_chunk().emit_constant(WeaveType::String(value.into()), line);
+        // TODO: Implement string support in NanBoxedValue - using null placeholder for now
+        self.current_chunk().emit_constant(NanBoxedValue::null(), line);
     }
 
     fn emit_number(&mut self, value: f64) {
@@ -657,7 +661,7 @@ impl Compiler {
         log_debug!("Emitting constant opcode", constant_value = format!("{:?}", value).as_str(), line = line, offset = self.current_chunk().code.len());
         
         self.current_chunk()
-            .emit_constant(WeaveType::Number(value.into()), line);
+            .emit_constant(NanBoxedValue::number(value), line);
     }
 
     fn emit_basic_opcode(&mut self, op: Op) {

@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use crate::weave::vm::types::WeaveType;
+use crate::weave::vm::types::{WeaveType, NanBoxedValue};
 use crate::weave::vm::vm::VMError;
 use std::time::SystemTime;
 use crate::log_debug;
@@ -27,7 +27,7 @@ impl NativeFnType {
 pub struct NativeFn {
     pub name: NativeFnType,
     pub arity: usize,
-    pub func: fn(&[WeaveType]) -> Result<WeaveType, VMError>,
+    pub func: fn(&[NanBoxedValue]) -> Result<NanBoxedValue, VMError>,
 }
 
 impl NativeFn {
@@ -80,7 +80,7 @@ impl Display for NativeFnType {
     }
 }
 
-fn print(args: &[WeaveType]) -> Result<WeaveType, VMError> {
+fn print(args: &[NanBoxedValue]) -> Result<NanBoxedValue, VMError> {
     let printable = args
         .iter()
         .map(|a| a.to_string())
@@ -88,35 +88,38 @@ fn print(args: &[WeaveType]) -> Result<WeaveType, VMError> {
         .join("");
     log_debug!("Native puts function call", output = printable.as_str());
     println!("{}", printable);
-    Ok(WeaveType::None)
+    Ok(NanBoxedValue::null())
 }
 
-fn input(_args: &[WeaveType]) -> Result<WeaveType, VMError> {
+fn input(_args: &[NanBoxedValue]) -> Result<NanBoxedValue, VMError> {
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).unwrap();
-    Ok(WeaveType::String(input.into()))
+    // TODO: Implement string support in NanBoxedValue
+    // For now, return null as placeholder
+    Ok(NanBoxedValue::null())
 }
 
-fn clock(_args: &[WeaveType]) -> Result<WeaveType, VMError> {
+fn clock(_args: &[NanBoxedValue]) -> Result<NanBoxedValue, VMError> {
     // Get system time (ms since epoch)
     let time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_millis();
-    Ok(WeaveType::Number((time as u64).into()))
+    Ok(NanBoxedValue::number(time as f64))
 }
 
-fn read_file(args: &[WeaveType]) -> Result<WeaveType, VMError> {
+fn read_file(args: &[NanBoxedValue]) -> Result<NanBoxedValue, VMError> {
     let path = args[0].to_string();
     let contents = std::fs::read_to_string(path).unwrap();
     // TODO: this should be a Container of bytes which we can convert to a Weave String
     //       and/or format with a desired 'formatter' function
-    Ok(WeaveType::String(contents.into()))
+    // For now, return null as placeholder until string support is added
+    Ok(NanBoxedValue::null())
 }
 
-fn write_file(args: &[WeaveType]) -> Result<WeaveType, VMError> {
+fn write_file(args: &[NanBoxedValue]) -> Result<NanBoxedValue, VMError> {
     let path = args[0].to_string();
     let contents = args[1].to_string();
     std::fs::write(path, contents).unwrap();
-    Ok(WeaveType::None)
+    Ok(NanBoxedValue::null())
 }

@@ -6,9 +6,9 @@ fn test_hot_loop() {
         count = count + 1
     }
     
-    # Hot loop - 2500 iterations
+    # Hot loop - 5000 iterations
     i = 0
-    while i < 2500 {
+    while i < 5000 {
         increment()
         i = i + 1
     }

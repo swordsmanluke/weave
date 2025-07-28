@@ -1,6 +1,6 @@
 # Task ID: 16
 # Title: Fix Lambda Sequential Call Bug
-# Status: pending
+# Status: done
 # Dependencies: None
 # Priority: high
 # Description: Fix the stack indexing bug in test_lambda_with_intermediate_variables that causes stack index out of bounds errors
@@ -11,31 +11,31 @@
 
 
 # Subtasks:
-## 1. Analyze Stack State During Sequential Lambda Calls [pending]
+## 1. Analyze Stack State During Sequential Lambda Calls [done]
 ### Dependencies: None
 ### Description: Debug the exact stack state during test_lambda_with_intermediate_variables execution to understand why slot=3 is accessed when stack_len=3
 ### Details:
 
 
-## 2. Investigate Stack Cleanup After Function Returns [pending]
+## 2. Investigate Stack Cleanup After Function Returns [done]
 ### Dependencies: None
 ### Description: Check if the VM properly cleans up the stack after lambda function returns, ensuring correct stack state for subsequent calls
 ### Details:
 
 
-## 3. Add Stack Debugging Instrumentation [pending]
+## 3. Add Stack Debugging Instrumentation [done]
 ### Dependencies: None
 ### Description: Add debug output to track stack state during Op::Call and Op::GetLocal operations specifically for the failing test case
 ### Details:
 
 
-## 4. Fix Stack Management for Sequential Lambda Calls [pending]
+## 4. Fix Stack Management for Sequential Lambda Calls [done]
 ### Dependencies: None
 ### Description: Implement the fix for proper stack management during sequential lambda calls based on debugging findings
 ### Details:
 
 
-## 5. Verify Fix and Add Regression Tests [pending]
+## 5. Verify Fix and Add Regression Tests [done]
 ### Dependencies: None
 ### Description: Verify the fix resolves the test_lambda_with_intermediate_variables issue and add additional regression tests for similar edge cases
 ### Details:

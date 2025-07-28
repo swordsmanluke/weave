@@ -1,0 +1,11 @@
+# Task ID: 20
+# Title: Implement Instruction Dispatch Optimization with Computed Goto
+# Status: pending
+# Dependencies: 19, 18
+# Priority: medium
+# Description: Replace the current match-based instruction dispatch with computed goto or function pointer table to eliminate branch prediction misses and inline critical opcodes for 20-30% performance improvement.
+# Details:
+Implement instruction dispatch optimization to eliminate branch prediction penalties in the VM's main execution loop: 1) Replace the large match statement in vm.rs with computed goto using Rust's inline assembly or function pointer table approach. Create dispatch table mapping opcodes to function pointers for direct jumps. 2) Inline critical high-frequency opcodes (GetLocal, SetLocal, CONSTANT, Add, Subtract) directly in the dispatch loop to eliminate function call overhead. 3) Optimize instruction pointer advancement by eliminating bounds checking in hot paths and using pointer arithmetic where safe. 4) Implement threaded code interpretation where each instruction contains a pointer to the next instruction to execute. 5) Consider using Rust's likely/unlikely branch hints for uncommon opcodes. 6) Profile current dispatch overhead using perf to identify specific branch misprediction hotspots. 7) Benchmark against current implementation using fibonacci, factorial, and arithmetic-heavy workloads.
+
+# Test Strategy:
+Performance validation and correctness testing: 1) Benchmark current VM execution vs optimized dispatch using fibonacci(30), factorial(20), and nested loop arithmetic tests. 2) Measure branch prediction miss rates using perf stat -e branch-misses to verify elimination of mispredictions. 3) Create comprehensive opcode coverage tests ensuring all instructions work correctly with new dispatch mechanism. 4) Stress test with large bytecode programs (1M+ instructions) to verify stability. 5) Profile instruction execution frequency to validate inlining decisions for GetLocal/SetLocal/CONSTANT opcodes. 6) Regression test entire test suite to ensure no functional changes. 7) Measure instruction throughput (instructions per second) improvement to validate 20-30% performance target.

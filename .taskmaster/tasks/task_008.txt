@@ -11,13 +11,13 @@ Optimize upvalue implementation to minimize .clone() operations throughout codeb
 Performance benchmarks for hot-loop closure usage, memory usage profiling, verify minimal clone operations, test 10K iteration performance requirement
 
 # Subtasks:
-## 1. Profile Performance Bottlenecks [in-progress]
+## 1. Profile Performance Bottlenecks [done]
 ### Dependencies: None
 ### Description: Identify specific performance bottlenecks in closure hot loop execution
 ### Details:
 Use profiling tools to identify where the 55-second execution time for 5K iterations is being spent. Focus on upvalue access patterns, clone operations, and RefCell borrowing overhead. Create performance baseline measurements.
 
-## 2. Optimize Upvalue Access Patterns [pending]
+## 2. Optimize Upvalue Access Patterns [in-progress]
 ### Dependencies: 8.1
 ### Description: Reduce clone operations and improve upvalue access efficiency
 ### Details:

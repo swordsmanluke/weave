@@ -1,6 +1,7 @@
 use crate::weave::compiler::Compiler;
 use crate::weave::vm::instruction_pointer::IP;
 use crate::weave::vm::types::{FnClosure, NanBoxedValue, NativeFn, NativeFnType, Upvalue, WeaveNumber, WeaveString, WeaveType, WeaveUpvalue};
+use crate::weave::vm::types::PointerTag;
 use crate::weave::vm::types::errors::OpResult;
 use crate::weave::{Op};
 use std::collections::HashMap;
@@ -88,7 +89,7 @@ impl CallStack {
         self.frames.last().unwrap().closure.func.chunk.disassemble(name).unwrap();
     }
     
-    pub fn constants(&self) -> &Vec<WeaveType> {
+    pub fn constants(&self) -> &Vec<NanBoxedValue> {
         &self.frames.last().unwrap().closure.func.chunk.constants
     }
 
@@ -122,7 +123,7 @@ impl CallStack {
         self.cur_frame().closure.func.chunk.line_number_at(point)
     }
 
-    pub fn get_constant(&mut self, idx: usize) -> &WeaveType {
+    pub fn get_constant(&mut self, idx: usize) -> NanBoxedValue {
         self.cur_frame().closure.func.chunk.get_constant(idx)
     }
 
@@ -363,7 +364,7 @@ impl VM {
         self.open_upvalues.retain(|uv| uv.is_open());
     }
 
-    fn _read_constant(&mut self, idx: usize) -> &WeaveType {
+    fn _read_constant(&mut self, idx: usize) -> NanBoxedValue {
         self.call_stack.get_constant(idx)
     }
 
@@ -484,14 +485,16 @@ impl VM {
                     let idx = self.call_stack.next_u16() as usize;
                     #[cfg(debug_assertions)]
                     self.debug(&format!("Reading constant @ {:0x}", idx));
-                    // Push constant directly (still need to clone for ownership)
-                    let constant = self.call_stack.get_constant(idx).clone();
-                    self._push_weave_type(constant);
+                    // Push constant directly - NanBoxedValue is Copy, no clone needed!
+                    let constant = self.call_stack.get_constant(idx);
+                    self.stack.push(constant);
                 }
                 Op::Closure => {
                     let idx = self.call_stack.next_u16() as usize;
                     self.debug(&format!("Reading closure @ {:0x}", idx));
-                    let val = self._read_constant(idx).clone();
+                    let val = self._read_constant(idx);
+                    // Convert NanBoxedValue back to WeaveType for closure processing
+                    let val = self.nan_boxed_to_weave_type(val);
                     match val {
                         WeaveType::Closure(mut closure) => {
                             // Process upvalues that follow the closure constant
@@ -520,60 +523,78 @@ impl VM {
                     }
                 }
                 Op::Call => {
-                    let arg_count= self.call_stack.next_byte() as usize;
+                    let arg_count = self.call_stack.next_byte() as usize;
                     let func_slot = (self.stack.len() - 1) - arg_count;
-                    let func_nan_boxed = self.stack.get(func_slot).unwrap();
-                    let func = self.nan_boxed_to_weave_type(*func_nan_boxed);
-                    #[cfg(debug_assertions)]
-                    self.debug(&format!("Taking {} @ {}", func, func_slot));
-                    match func {
-                        WeaveType::Closure(f) => {
-                            // Inline validation to eliminate double cloning
-                            if f.func.arity != arg_count {
+                    let func_nan_boxed = *self.stack.get(func_slot).unwrap();
+                    
+                    if func_nan_boxed.is_pointer() {
+                        let (ptr, tag) = func_nan_boxed.as_pointer();
+                        match tag {
+                            PointerTag::Closure => {
+                                // Cast pointer back to FnClosure
+                                let closure = unsafe { &*(ptr as *const FnClosure) };
+                                
+                                // Inline validation to eliminate double cloning
+                                if closure.func.arity != arg_count {
+                                    return Err(VMError::RuntimeError { 
+                                        line: self.call_stack.line_number_at(-1), 
+                                        msg: format!("{} Expected {} arguments but got {}", closure.func.name, closure.func.arity, arg_count) 
+                                    });
+                                }
+                                if self.call_stack.frames.len() > 100 {
+                                    return Err(VMError::RuntimeError { 
+                                        line: self.call_stack.line_number_at(-1), 
+                                        msg: "Stack overflow".to_string() 
+                                    });
+                                }
+                                
+                                // Standard path: full CallFrame creation  
+                                self.call_stack.push(closure.clone(), func_slot);
+                            }
+                            PointerTag::NativeFn => {
+                                // Cast pointer back to NativeFn
+                                let native_fn = unsafe { &*(ptr as *const Rc<NativeFn>) };
+                                
+                                // Call native function directly with NanBoxedValue args
+                                let result = if arg_count > 0 {
+                                    let last_arg = self.stack.len() - 1;
+                                    let first_arg = last_arg - arg_count;
+                                    let nan_boxed_args = &self.stack[first_arg..last_arg];
+                                    (native_fn.func)(nan_boxed_args)?
+                                } else {
+                                    (native_fn.func)(&[])?
+                                };
+                                
+                                // Pop function and args from stack, push result
+                                for _ in 0..=arg_count {
+                                    self.stack.pop();
+                                }
+                                self.stack.push(result);
+                            }
+                            _ => {
                                 return Err(VMError::RuntimeError { 
                                     line: self.call_stack.line_number_at(-1), 
-                                    msg: format!("{} Expected {} arguments but got {}", f.func.name, f.func.arity, arg_count) 
-                                });
+                                    msg: "Only functions can be called".to_string() 
+                                })
                             }
-                            if self.call_stack.frames.len() > 100 {
-                                return Err(VMError::RuntimeError { 
-                                    line: self.call_stack.line_number_at(-1), 
-                                    msg: "Stack overflow".to_string() 
-                                });
-                            }
-                            
-                            // Standard path: full CallFrame creation  
-                            self.call_stack.push(f.clone(), func_slot);
                         }
-                        WeaveType::NativeFn(f) => {
-                            // Convert NanBoxedValue args to WeaveType for native function call
-                            let args = if arg_count > 0 {
-                                let last_arg = self.stack.len() - 1;
-                                let first_arg = last_arg - arg_count;
-                                let nan_boxed_args = &self.stack[first_arg..last_arg];
-                                let converted_args: Vec<WeaveType> = nan_boxed_args.iter()
-                                    .map(|nb| self.nan_boxed_to_weave_type(*nb))
-                                    .collect();
-                                (f.func)(&converted_args)?
-                            } else {
-                                (f.func)(&[])?
-                            };
-                        }
-                        _ => {
-                            return Err(VMError::RuntimeError { line: self.call_stack.line_number_at(-1), msg: "Only functions can be called".to_string() })
-                        }
+                    } else {
+                        return Err(VMError::RuntimeError { 
+                            line: self.call_stack.line_number_at(-1), 
+                            msg: "Only functions can be called".to_string() 
+                        });
                     }
                 }
                 Op::SetLocal => {
                     let slot = self.call_stack.next_slot();
-                    let value = self._pop();
-                    let nan_boxed_value = self.weave_type_to_nan_boxed(value.clone());
+                    // Optimize: get NanBoxedValue directly from stack instead of converting
+                    let nan_boxed_value = self.stack.pop().unwrap_or(NanBoxedValue::null());
                     // Ensure stack is large enough for the slot
                     while self.stack.len() <= slot {
                         self.stack.push(NanBoxedValue::null());
                     }
                     self.stack[slot] = nan_boxed_value;
-                    self._push_weave_type(value); // Push the assigned value back for expression semantics
+                    self.stack.push(nan_boxed_value); // Push the assigned value back for expression semantics
                 }
                 Op::GetLocal => {
                     let slot = self.call_stack.next_slot();

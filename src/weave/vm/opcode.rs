@@ -155,20 +155,24 @@ impl Disassemble for Op {
                 #[cfg(debug_assertions)]
                 println!("\t{0:04x}  {1}", idx, value);
                 
-                // Now read N upvalues, and show them too.
-                match value {
-                    WeaveType::Closure(c) => {
-                        for i in 0..c.func.upvalue_count {
-                            let upvalue = Upvalue::from_bytes(&chunk.code, offset);
+                // Now read N upvalues, and show them too.  
+                // TODO: Handle closure pointers in NanBoxedValue after implementing proper closure storage
+                if value.is_pointer() {
+                    let (ptr, tag) = value.as_pointer();
+                    match tag {
+                        crate::weave::vm::types::PointerTag::Closure => {
+                            // For now, skip upvalue reading until closure storage is properly implemented
                             #[cfg(debug_assertions)]
-                            println!("\t\t{0}  {1:04x}", upvalue, i);
-                            offset += 2;
+                            println!("\t\tClosure found (upvalue reading not yet implemented)");
+                        }
+                        _ => {
+                            #[cfg(debug_assertions)]
+                            println!("\t\tNot a closure pointer.");
                         }
                     }
-                    _ => { 
-                        #[cfg(debug_assertions)]
-                        println!("\t\tNone"); 
-                    }
+                } else {
+                    #[cfg(debug_assertions)]
+                    println!("\t\tNot a pointer.");
                 }
                 
                 offset

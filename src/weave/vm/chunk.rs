@@ -1,13 +1,13 @@
 use std::fmt::{Error};
 use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;
-use crate::weave::vm::types::{Upvalue, WeaveType};
+use crate::weave::vm::types::{Upvalue, WeaveType, NanBoxedValue};
 use crate::log_debug;
 
 #[derive(Clone, Debug)]
 pub struct Chunk {
     pub code: Vec<u8>,
-    pub constants: Vec<WeaveType>, // May be replaceable with a vec
+    pub constants: Vec<NanBoxedValue>, // Now using NanBoxedValue for 4x memory reduction
     pub lines: Vec<(usize, usize)>
 }
 
@@ -49,29 +49,30 @@ impl Chunk {
         }
     }
 
-    pub fn emit_constant(&mut self, value: WeaveType, line: usize) -> usize {
+    pub fn emit_constant(&mut self, value: NanBoxedValue, line: usize) -> usize {
         self.write_op(Op::CONSTANT, line);
         self.add_constant(value, line)
     }
 
-    pub fn add_constant(&mut self, value: WeaveType, line: usize) -> usize {
+    pub fn add_constant(&mut self, value: NanBoxedValue, line: usize) -> usize {
         let idx = self.add_constant_only(value);
         self.write(&(idx as u16).to_be_bytes().to_vec(), line); // Write BigEndian bytes to the chunk
         idx
     }
 
     /// Add a constant to the constants table without emitting bytecode
-    pub fn add_constant_only(&mut self, value: WeaveType) -> usize {
-        if self.constants.contains(&value) {
-            self.constants.iter().position(|v| *v == value).unwrap()
+    pub fn add_constant_only(&mut self, value: NanBoxedValue) -> usize {
+        // NanBoxedValue implements Copy and PartialEq, so this is efficient
+        if let Some(pos) = self.constants.iter().position(|&v| v == value) {
+            pos
         } else {
             self.constants.push(value);
             self.constants.len() - 1
         }
     }
 
-    pub fn get_constant(&self, idx: usize) -> &WeaveType {
-        &self.constants[idx]
+    pub fn get_constant(&self, idx: usize) -> NanBoxedValue {
+        self.constants[idx] // Copy, not reference - NanBoxedValue is Copy
     }
 
     pub fn disassemble(&self, name: &str) -> Result<(), Error> {

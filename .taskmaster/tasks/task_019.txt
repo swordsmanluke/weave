@@ -1,0 +1,11 @@
+# Task ID: 19
+# Title: Stack Architecture Redesign with Pre-allocated Arrays and Move Semantics
+# Status: pending
+# Dependencies: 18
+# Priority: high
+# Description: Replace Vec<WeaveType> stack with pre-allocated fixed-size array and manual stack pointer management, implementing move semantics to eliminate defensive cloning and achieve 30-50% performance improvement.
+# Details:
+Implement stack architecture redesign to eliminate allocation overhead and memory traffic: 1) Replace VM's Vec<WeaveType> stack with pre-allocated fixed-size array (e.g., [WeaveType; 256]) and manual stack pointer (usize index). 2) Implement move semantics throughout VM operations - modify opcodes to move values instead of cloning, use mem::replace and mem::take for stack operations. 3) Eliminate bounds checking in hot paths by using unsafe indexing where stack pointer invariants guarantee safety. 4) Redesign stack operations: push() becomes direct array assignment with pointer increment, pop() becomes mem::take with pointer decrement. 5) Update all opcode handlers to use move semantics - arithmetic operations take ownership of operands, function calls move arguments. 6) Implement stack overflow detection with explicit checks rather than Vec growth. 7) Optimize CallFrame storage to use stack indices instead of borrowed references. 8) Profile memory allocation patterns and validate elimination of stack-related allocations during execution.
+
+# Test Strategy:
+Performance validation and correctness testing: 1) Benchmark current implementation vs new stack architecture using fibonacci, factorial, and nested function call tests. 2) Measure allocation patterns with memory profiler to verify elimination of Vec reallocations. 3) Create stress tests with deep recursion to validate stack overflow detection. 4) Test all existing VM functionality to ensure move semantics don't break operations. 5) Validate that complex programs (closures, upvalues, nested calls) work correctly with new stack management. 6) Performance regression tests ensuring 30-50% improvement in function-heavy workloads. 7) Memory usage tests confirming reduced heap allocations and memory traffic.

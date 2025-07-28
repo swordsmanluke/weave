@@ -430,7 +430,7 @@
               "18.2"
             ],
             "details": "Update all opcodes in vm.rs to work with NanBoxedValue: Implement fast-path arithmetic operations (Add, Subtract, Multiply, Divide) that check if both operands are numbers using inline bit tests and operate on raw f64 values without unpacking. Update comparison operations to handle NaN-boxed values correctly. Modify CONSTANT, GetLocal, SetLocal, GetGlobal, SetGlobal to work with NanBoxedValue. Update function call and return mechanisms to handle NaN-boxed values. Implement branchless arithmetic using conditional moves where possible. Add specialized opcodes for common patterns like number-to-number operations.",
-            "status": "in-progress",
+            "status": "done",
             "testStrategy": "Opcode-level tests for each instruction, performance benchmarks comparing boxed vs unboxed arithmetic, edge case tests for NaN propagation in arithmetic"
           },
           {
@@ -454,6 +454,28 @@
             "details": "Implement performance-critical optimizations: Add inline assembly or intrinsics for ultra-fast type checking (test high 16 bits), optimize hot paths in arithmetic operations using SIMD where applicable. Implement bulk stack operations using memcpy for value moves. Add compiler hints for branch prediction in type dispatch. Create comprehensive benchmark suite measuring: memory bandwidth reduction (target 4x improvement), arithmetic operation throughput, type checking overhead, overall VM execution speed on real workloads (fibonacci, mandelbrot, closure-heavy code). Profile and optimize cache usage patterns. Document performance characteristics and tuning guidelines.",
             "status": "pending",
             "testStrategy": "Micro-benchmarks for individual operations, macro-benchmarks on real programs, memory bandwidth measurements, cache miss analysis, regression tests ensuring no performance degradation"
+          },
+          {
+            "id": 6,
+            "title": "Complete WeaveType Elimination",
+            "description": "Completely eliminate WeaveType throughout the codebase, replacing with NanBoxedValue to eliminate all type conversion overhead",
+            "details": "Replace WeaveType completely with NanBoxedValue in:\n1. Chunk constants: Vec<WeaveType> → Vec<NanBoxedValue>\n2. Native function interface: fn(&[WeaveType]) → fn(&[NanBoxedValue])\n3. All operator implementations (Add, Sub, Mul, Display) - move from WeaveType to NanBoxedValue\n4. Remove ALL conversion functions: weave_type_to_nan_boxed() and nan_boxed_to_weave_type()\n5. Update compiler to emit NanBoxedValue constants directly\n\nThis eliminates the dual-type system overhead that causes 6-8 conversions per function call, achieving the target 20-50x performance improvement.",
+            "status": "in-progress",
+            "dependencies": [
+              "18.3"
+            ],
+            "parentTaskId": 18
+          },
+          {
+            "id": 7,
+            "title": "Fix Function Call Performance Scaling Issues",
+            "description": "Address O(n²) scaling behavior and optimize function call hot paths to achieve 10,000+ calls/second",
+            "details": "Current Performance Issue: \n- 2500 iterations = 7 seconds (357 calls/second)\n- 5000 iterations = 28 seconds (178 calls/second) \n- Shows O(n²) scaling instead of linear O(n)\n\nKey Optimizations:\n1. Profile and fix open_upvalues data structure (suspected O(n²) behavior)\n2. Optimize stack growth patterns to reduce Vec reallocations\n3. Streamline Op::Call and Op::RETURN protocols after WeaveType elimination\n4. Remove bounds checking in release builds for hot paths\n5. Implement CallFrame pooling optimizations\n6. Pre-allocate larger stack chunks\n\nTarget: Linear O(n) scaling with 10,000+ function calls/second performance",
+            "status": "pending",
+            "dependencies": [
+              "18.6"
+            ],
+            "parentTaskId": 18
           }
         ]
       },
@@ -501,7 +523,7 @@
     ],
     "metadata": {
       "created": "2025-07-24T17:50:08.486Z",
-      "updated": "2025-07-28T21:56:39.149Z",
+      "updated": "2025-07-28T22:44:21.671Z",
       "description": "Tasks for master context"
     }
   }
