@@ -435,20 +435,18 @@ impl VM {
                 }
                 Op::GetUpvalue => {
                     let slot = self.call_stack.next_byte() as usize;
+                    // Access upvalue directly by cloning only the Rc (cheap)
                     let upvalue = self.call_stack.cur_frame().closure.upvalues[slot].clone();
-                    let value = upvalue.value(self);
+                    let value = upvalue.get_direct(self);
                     self._push(Ok(value))?;
                 }
                 Op::SetUpvalue => {
                     let slot = self.call_stack.next_byte() as usize;
                     let v = self._peek();
-                    // Clone the upvalue to avoid borrowing conflicts
-                    let mut upvalue = self.call_stack.frames.last().unwrap()
+                    // Clone only the Rc (cheap) to avoid borrowing conflicts
+                    let upvalue = self.call_stack.frames.last().unwrap()
                         .closure.upvalues[slot].clone();
-                    upvalue.set(v, self);
-                    // Update the upvalue in the closure
-                    self.call_stack.frames.last_mut().unwrap()
-                        .closure.upvalues[slot] = upvalue;
+                    upvalue.set_direct(v, self);
                 }
                 Op::SetGlobal => {
                     // Previous to this we should have processed an expression (val)
@@ -555,6 +553,7 @@ impl VM {
     }
 
     fn debug(&self, msg: &str) {
+        #[cfg(debug_assertions)]
         log_debug!("VM debug", message = msg, stack_depth = self.stack.len());
     }
 

@@ -1,0 +1,8 @@
+# Micro baseline test - just 100 iterations
+count = 0
+i = 0
+while i < 100 {
+    count = count + 1
+    i = i + 1
+}
+puts count

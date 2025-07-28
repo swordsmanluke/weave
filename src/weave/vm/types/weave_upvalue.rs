@@ -39,4 +39,14 @@ impl WeaveUpvalue {
             InnerUpvalue::Closed(_) => 0, // Closed upvalues don't have stack index
         }
     }
+
+    /// Direct access to the inner value for performance-critical operations
+    pub fn get_direct(&self, vm: &VM) -> WeaveType {
+        self.value.borrow().get(vm)
+    }
+
+    /// Direct set access for performance-critical operations
+    pub fn set_direct(&self, v: WeaveType, vm: &mut VM) {
+        self.value.borrow_mut().set(v, vm)
+    }
 }
