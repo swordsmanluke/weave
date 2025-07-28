@@ -435,7 +435,7 @@ impl VM {
                                 });
                             }
                             
-                            // Single clone: only for CallFrame creation
+                            // Standard path: full CallFrame creation  
                             self.call_stack.push(f.clone(), func_slot);
                         }
                         WeaveType::NativeFn(f) => {
@@ -686,6 +686,7 @@ impl VM {
         self.stack.clear();
         self.call_stack.reset();
     }
+    
     
 }
 

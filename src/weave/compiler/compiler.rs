@@ -655,6 +655,7 @@ impl Compiler {
     fn emit_number(&mut self, value: f64) {
         let line = self.line;
         log_debug!("Emitting constant opcode", constant_value = format!("{:?}", value).as_str(), line = line, offset = self.current_chunk().code.len());
+        
         self.current_chunk()
             .emit_constant(WeaveType::Number(value.into()), line);
     }
