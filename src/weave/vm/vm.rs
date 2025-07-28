@@ -639,48 +639,83 @@ impl VM {
                     self._push(v)?;
                 }
                 Op::ADD => {
-                    // Optimize arithmetic: direct stack access instead of _poppop + _push
-                    let b = self._pop();
-                    let a = self._pop();
-                    match a + b {
-                        Ok(result) => self._push_weave_type(result),
-                        Err(e) => return Err(VMError::RuntimeError { 
-                            line: self.call_stack.line_number_at(-1), 
-                            msg: format!("Addition failed: {}", e) 
-                        }),
+                    // Fast-path NaN-boxed arithmetic
+                    let b = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    let a = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    
+                    if let Some(result) = a.fast_add(b) {
+                        self.stack.push(result);
+                    } else {
+                        // Fallback to WeaveType operations for string concatenation, etc.
+                        let a_weave = self.nan_boxed_to_weave_type(a);
+                        let b_weave = self.nan_boxed_to_weave_type(b);
+                        match a_weave + b_weave {
+                            Ok(result) => self._push_weave_type(result),
+                            Err(e) => return Err(VMError::RuntimeError { 
+                                line: self.call_stack.line_number_at(-1), 
+                                msg: format!("Addition failed: {}", e) 
+                            }),
+                        }
                     }
                 }
                 Op::SUB => {
-                    let b = self._pop();
-                    let a = self._pop();
-                    match a - b {
-                        Ok(result) => self._push_weave_type(result),
-                        Err(e) => return Err(VMError::RuntimeError { 
-                            line: self.call_stack.line_number_at(-1), 
-                            msg: format!("Subtraction failed: {}", e) 
-                        }),
+                    // Fast-path NaN-boxed arithmetic
+                    let b = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    let a = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    
+                    if let Some(result) = a.fast_sub(b) {
+                        self.stack.push(result);
+                    } else {
+                        // Fallback to WeaveType operations
+                        let a_weave = self.nan_boxed_to_weave_type(a);
+                        let b_weave = self.nan_boxed_to_weave_type(b);
+                        match a_weave - b_weave {
+                            Ok(result) => self._push_weave_type(result),
+                            Err(e) => return Err(VMError::RuntimeError { 
+                                line: self.call_stack.line_number_at(-1), 
+                                msg: format!("Subtraction failed: {}", e) 
+                            }),
+                        }
                     }
                 }
                 Op::MUL => {
-                    let b = self._pop();
-                    let a = self._pop();
-                    match a * b {
-                        Ok(result) => self._push_weave_type(result),
-                        Err(e) => return Err(VMError::RuntimeError { 
-                            line: self.call_stack.line_number_at(-1), 
-                            msg: format!("Multiplication failed: {}", e) 
-                        }),
+                    // Fast-path NaN-boxed arithmetic
+                    let b = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    let a = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    
+                    if let Some(result) = a.fast_mul(b) {
+                        self.stack.push(result);
+                    } else {
+                        // Fallback to WeaveType operations
+                        let a_weave = self.nan_boxed_to_weave_type(a);
+                        let b_weave = self.nan_boxed_to_weave_type(b);
+                        match a_weave * b_weave {
+                            Ok(result) => self._push_weave_type(result),
+                            Err(e) => return Err(VMError::RuntimeError { 
+                                line: self.call_stack.line_number_at(-1), 
+                                msg: format!("Multiplication failed: {}", e) 
+                            }),
+                        }
                     }
                 }
                 Op::DIV => {
-                    let b = self._pop();
-                    let a = self._pop();
-                    match a / b {
-                        Ok(result) => self._push_weave_type(result),
-                        Err(e) => return Err(VMError::RuntimeError { 
-                            line: self.call_stack.line_number_at(-1), 
-                            msg: format!("Division failed: {}", e) 
-                        }),
+                    // Fast-path NaN-boxed arithmetic
+                    let b = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    let a = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    
+                    if let Some(result) = a.fast_div(b) {
+                        self.stack.push(result);
+                    } else {
+                        // Fallback to WeaveType operations
+                        let a_weave = self.nan_boxed_to_weave_type(a);
+                        let b_weave = self.nan_boxed_to_weave_type(b);
+                        match a_weave / b_weave {
+                            Ok(result) => self._push_weave_type(result),
+                            Err(e) => return Err(VMError::RuntimeError { 
+                                line: self.call_stack.line_number_at(-1), 
+                                msg: format!("Division failed: {}", e) 
+                            }),
+                        }
                     }
                 }
                 Op::TRUE => {
@@ -696,20 +731,40 @@ impl VM {
                     self._push(Ok(val))?;
                 }
                 Op::GREATER => {
-                    // Optimize comparison: direct stack access
-                    let b = self._pop();
-                    let a = self._pop();
-                    self._push_weave_type(WeaveType::Boolean(a > b));
+                    // Fast-path NaN-boxed comparison
+                    let b = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    let a = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    
+                    if let Some(result) = a.fast_greater(b) {
+                        self.stack.push(result);
+                    } else {
+                        // Fallback to WeaveType comparison
+                        let a_weave = self.nan_boxed_to_weave_type(a);
+                        let b_weave = self.nan_boxed_to_weave_type(b);
+                        self._push_weave_type(WeaveType::Boolean(a_weave > b_weave));
+                    }
                 }
                 Op::LESS => {
-                    let b = self._pop();
-                    let a = self._pop();
-                    self._push_weave_type(WeaveType::Boolean(a < b));
+                    // Fast-path NaN-boxed comparison
+                    let b = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    let a = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    
+                    if let Some(result) = a.fast_less(b) {
+                        self.stack.push(result);
+                    } else {
+                        // Fallback to WeaveType comparison
+                        let a_weave = self.nan_boxed_to_weave_type(a);
+                        let b_weave = self.nan_boxed_to_weave_type(b);
+                        self._push_weave_type(WeaveType::Boolean(a_weave < b_weave));
+                    }
                 }
                 Op::EQUAL => {
-                    let b = self._pop();
-                    let a = self._pop();
-                    self._push_weave_type(WeaveType::Boolean(a == b));
+                    // Fast-path NaN-boxed comparison
+                    let b = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    let a = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    
+                    let result = a.fast_equal(b);
+                    self.stack.push(result);
                 }
                 Op::PRINT => {
                     // Don't remove the top value from the stack - printing a value evaluates
@@ -823,7 +878,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret("(5 + 2) * 3");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(21.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::number(21.0));
     }
 
     #[test]
@@ -831,7 +886,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret("-5");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(-5.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::number(-5.0));
     }
 
     #[test]
@@ -839,7 +894,10 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret("\"hello\"");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from("hello"));
+        // String values are stored as pointers in NanBoxedValue, so we can't directly compare
+        // Instead, let's convert back to WeaveType to verify the value
+        let result_as_weave = vm.nan_boxed_to_weave_type(res.unwrap());
+        assert_eq!(result_as_weave, WeaveType::from("hello"));
     }
     
     #[test]
@@ -847,7 +905,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret("x = 5\nx + 2");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(7.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(7.0));
     }
 
     #[test]
@@ -877,7 +935,7 @@ mod tests {
             "Global \"x\" not found in {:?}",
             vm.globals.keys().collect::<Vec<&String>>()
         );
-        assert_eq!(vm.globals["x"], WeaveType::from(5.0));
+        assert_eq!(vm.globals["x"], NanBoxedValue::number(5.0));
     }
     
     #[test]
@@ -900,7 +958,7 @@ mod tests {
         
         a ");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(1.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(1.0));
     }
 
     #[test]
@@ -915,7 +973,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret("fn test() { x = 1; x + 3 } test()");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(4.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(4.0));
     }
 
     #[test]
@@ -925,7 +983,7 @@ mod tests {
         // This test now verifies closure variable capture instead of nested blocks
         let res = vm.interpret("fn outer() { x = 2; fn inner() { x = x + 3; x } inner() } outer()");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(5.0)); // 2 + 3 = 5
+        assert_eq!(res.unwrap(), NanBoxedValue::from(5.0)); // 2 + 3 = 5
     }
 
     #[test]
@@ -936,7 +994,7 @@ mod tests {
         if (true) { a = a + 1 }
         a} test()");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(2.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(2.0));
     }
 
     #[test]
@@ -949,7 +1007,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(1.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(1.0));
     }
 
     #[test]
@@ -966,7 +1024,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(3.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(3.0));
     }
 
 
@@ -996,7 +1054,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(3.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(3.0));
     }
     
     #[test]
@@ -1010,7 +1068,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(3.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(3.0));
     }
     
     #[test]
@@ -1030,7 +1088,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(1.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(1.0));
     }
 
     #[test]
@@ -1054,7 +1112,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(10.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(10.0));
     }
 
     #[test]
@@ -1066,7 +1124,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(7.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(7.0));
     }
 
     #[test]
@@ -1081,7 +1139,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(15.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(15.0));
     }
 
     #[test]
@@ -1093,7 +1151,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(42.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(42.0));
     }
 
     #[test]
@@ -1105,7 +1163,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(36.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(36.0));
     }
 
     #[test]
@@ -1122,7 +1180,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(32.0)); // 7 + 25 = 32
+        assert_eq!(res.unwrap(), NanBoxedValue::from(32.0)); // 7 + 25 = 32
     }
 
     #[test]
@@ -1135,7 +1193,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(37.0)); // 7 + 30 = 37
+        assert_eq!(res.unwrap(), NanBoxedValue::from(37.0)); // 7 + 30 = 37
     }
 
     #[test]
@@ -1151,7 +1209,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(7.0));
+        assert_eq!(res.unwrap(), NanBoxedValue::from(7.0));
     }
 
     #[test]
@@ -1168,7 +1226,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(16.0)); // 6 + 10 = 16
+        assert_eq!(res.unwrap(), NanBoxedValue::from(16.0)); // 6 + 10 = 16
     }
 
     #[test]
@@ -1185,7 +1243,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(16.0)); // 6 + 10 = 16
+        assert_eq!(res.unwrap(), NanBoxedValue::from(16.0)); // 6 + 10 = 16
     }
 
     #[test]
@@ -1199,6 +1257,6 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(26.0)); // add(6, 20) = 26
+        assert_eq!(res.unwrap(), NanBoxedValue::from(26.0)); // add(6, 20) = 26
     }
 }

@@ -78,7 +78,15 @@ impl NanBoxedValue {
     #[inline]
     pub fn is_number(self) -> bool {
         // If it's not in the quiet NaN range, it's a number
-        (self.bits & QUIET_NAN_MASK) != QUIET_NAN_MASK
+        if (self.bits & QUIET_NAN_MASK) != QUIET_NAN_MASK {
+            true
+        } else {
+            // In the quiet NaN range - check if it's a special encoded value
+            // f64::NAN is 0x7FF8000000000000, which is just the QUIET_NAN_MASK
+            // Our special values have additional payload bits set
+            self.bits == QUIET_NAN_MASK || // f64::NAN case
+            (!self.is_null() && !self.is_boolean() && !self.is_pointer())
+        }
     }
     
     /// Fast type checking - returns true if this value represents null
@@ -213,20 +221,20 @@ impl NanBoxedValue {
     /// Fast equality comparison
     #[inline]
     pub fn fast_equal(self, other: NanBoxedValue) -> NanBoxedValue {
-        // Fast path for exact bit equality (works for numbers, booleans, null)
-        if self.bits == other.bits {
-            return NanBoxedValue::boolean(true);
-        }
-        
-        // Handle NaN cases - NaN != NaN in IEEE 754
+        // Handle numeric equality first to respect IEEE 754 NaN != NaN
         if self.is_number() && other.is_number() {
             let a = self.as_number();
             let b = other.as_number();
             // Use IEEE 754 equality (handles NaN correctly)
-            NanBoxedValue::boolean(a == b)
+            return NanBoxedValue::boolean(a == b);
+        }
+        
+        // Fast path for exact bit equality (works for booleans, null, pointers)
+        if self.bits == other.bits {
+            return NanBoxedValue::boolean(true);
         } else {
             // Different types or bit patterns are not equal
-            NanBoxedValue::boolean(false)
+            return NanBoxedValue::boolean(false);
         }
     }
     
@@ -424,6 +432,107 @@ mod tests {
         assert!(!one.is_boolean());
     }
     
+    #[test]
+    fn test_fast_arithmetic() {
+        let a = NanBoxedValue::number(5.0);
+        let b = NanBoxedValue::number(3.0);
+        
+        // Test fast addition
+        let sum = a.fast_add(b).unwrap();
+        assert!(sum.is_number());
+        assert_eq!(sum.as_number(), 8.0);
+        
+        // Test fast subtraction
+        let diff = a.fast_sub(b).unwrap();
+        assert!(diff.is_number());
+        assert_eq!(diff.as_number(), 2.0);
+        
+        // Test fast multiplication
+        let prod = a.fast_mul(b).unwrap();
+        assert!(prod.is_number());
+        assert_eq!(prod.as_number(), 15.0);
+        
+        // Test fast division
+        let quot = a.fast_div(b).unwrap();
+        assert!(quot.is_number());
+        assert_eq!(quot.as_number(), 5.0 / 3.0);
+        
+        // Test with non-numeric operands (should return None)
+        let bool_val = NanBoxedValue::boolean(true);
+        assert!(a.fast_add(bool_val).is_none());
+        assert!(bool_val.fast_mul(a).is_none());
+    }
+    
+    #[test]
+    fn test_fast_comparisons() {
+        let a = NanBoxedValue::number(5.0);
+        let b = NanBoxedValue::number(3.0);
+        let c = NanBoxedValue::number(5.0);
+        
+        // Test greater than
+        let gt = a.fast_greater(b).unwrap();
+        assert!(gt.is_boolean());
+        assert_eq!(gt.as_boolean(), true);
+        
+        let gt2 = b.fast_greater(a).unwrap();
+        assert_eq!(gt2.as_boolean(), false);
+        
+        // Test less than
+        let lt = b.fast_less(a).unwrap();
+        assert_eq!(lt.as_boolean(), true);
+        
+        // Test equality
+        let eq = a.fast_equal(c);
+        assert_eq!(eq.as_boolean(), true);
+        
+        let eq2 = a.fast_equal(b);
+        assert_eq!(eq2.as_boolean(), false);
+        
+        // Test with non-numeric operands
+        let bool_val = NanBoxedValue::boolean(true);
+        assert!(a.fast_greater(bool_val).is_none());
+    }
+    
+    #[test]
+    fn test_fast_equal_edge_cases() {
+        // Test identical bit patterns
+        let a = NanBoxedValue::boolean(true);
+        let b = NanBoxedValue::boolean(true);
+        assert_eq!(a.fast_equal(b).as_boolean(), true);
+        
+        // Test different types
+        let num = NanBoxedValue::number(1.0);
+        let bool_val = NanBoxedValue::boolean(true);
+        assert_eq!(num.fast_equal(bool_val).as_boolean(), false);
+        
+        // Test NaN handling
+        let nan1 = NanBoxedValue::number(f64::NAN);
+        let nan2 = NanBoxedValue::number(f64::NAN);
+        assert_eq!(nan1.fast_equal(nan2).as_boolean(), false); // NaN != NaN
+    }
+    
+    #[test]
+    fn test_is_truthy() {
+        // Numbers
+        assert_eq!(NanBoxedValue::number(1.0).is_truthy(), true);
+        assert_eq!(NanBoxedValue::number(-1.0).is_truthy(), true);
+        assert_eq!(NanBoxedValue::number(0.0).is_truthy(), false);
+        assert_eq!(NanBoxedValue::number(f64::NAN).is_truthy(), false);
+        
+        // Booleans
+        assert_eq!(NanBoxedValue::boolean(true).is_truthy(), true);
+        assert_eq!(NanBoxedValue::boolean(false).is_truthy(), false);
+        
+        // Null
+        assert_eq!(NanBoxedValue::null().is_truthy(), false);
+        
+        // Pointers (should be truthy)
+        let test_string = "hello";
+        let ptr = test_string.as_ptr() as *const ();
+        let val = NanBoxedValue::pointer(ptr, PointerTag::String);
+        assert_eq!(val.is_truthy(), true);
+    }
+
     #[test]
     fn test_round_trip_conversion() {
         // Numbers
