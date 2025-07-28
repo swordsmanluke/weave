@@ -53,6 +53,16 @@ impl NanBoxedValue {
         Self { bits: NULL_BITS }
     }
     
+    /// Creates a new NanBoxedValue from a string (heap-allocated as pointer)
+    #[inline]
+    pub fn string(value: String) -> Self {
+        use crate::weave::vm::types::WeaveString;
+        let weave_string = WeaveString::new(value);
+        let string_box = Box::new(weave_string);
+        let string_ptr = Box::into_raw(string_box) as *const ();
+        Self::pointer(string_ptr, PointerTag::String)
+    }
+    
     /// Creates a new NanBoxedValue from a raw pointer with type tag
     #[inline]
     pub fn pointer(ptr: *const (), tag: PointerTag) -> Self {
@@ -108,6 +118,17 @@ impl NanBoxedValue {
         !self.is_null() && !self.is_boolean()
     }
     
+    /// Fast type checking - returns true if this value represents a string
+    #[inline]
+    pub fn is_string(self) -> bool {
+        if self.is_pointer() {
+            let (_, tag) = self.as_pointer();
+            tag == PointerTag::String
+        } else {
+            false
+        }
+    }
+    
     /// Extracts the number value (assumes is_number() == true)
     #[inline]
     pub fn as_number(self) -> f64 {
@@ -120,6 +141,15 @@ impl NanBoxedValue {
     pub fn as_boolean(self) -> bool {
         debug_assert!(self.is_boolean(), "Value is not a boolean");
         self.bits == TRUE_BITS
+    }
+    
+    /// Extracts the string value (assumes is_string() == true)
+    #[inline]
+    pub fn as_string(self) -> &'static str {
+        debug_assert!(self.is_string(), "Value is not a string");
+        let (ptr, _) = self.as_pointer();
+        use crate::weave::vm::types::WeaveString;
+        unsafe { &*(ptr as *const WeaveString) }.as_str()
     }
     
     /// Extracts the pointer value and tag (assumes is_pointer() == true)
@@ -274,8 +304,10 @@ impl fmt::Display for NanBoxedValue {
             write!(f, "{}", self.as_boolean())
         } else if self.is_null() {
             write!(f, "null")
+        } else if self.is_string() {
+            write!(f, "{}", self.as_string())
         } else if self.is_pointer() {
-            // For Display, we can't safely dereference pointers without more context
+            // For Display, we can't safely dereference non-string pointers without more context
             // So we'll just show pointer info
             let (_, tag) = self.as_pointer();
             write!(f, "<{:?} pointer>", tag)

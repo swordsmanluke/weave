@@ -493,33 +493,46 @@ impl VM {
                     let idx = self.call_stack.next_u16() as usize;
                     self.debug(&format!("Reading closure @ {:0x}", idx));
                     let val = self._read_constant(idx);
-                    // Convert NanBoxedValue back to WeaveType for closure processing
-                    let val = self.nan_boxed_to_weave_type(val);
-                    match val {
-                        WeaveType::Closure(mut closure) => {
-                            // Process upvalues that follow the closure constant
-                            for _ in 0..closure.func.upvalue_count {
-                                let frame = self.call_stack.cur_frame();
-                                let bytecode = &frame.closure.func.chunk.code;
-                                let offset = frame.ip.ip;
-                                let upvalue = Upvalue::from_bytes(bytecode, offset);
-                                // Skip the upvalue bytes we just read
-                                drop(frame); // Explicitly drop to release borrow
-                                self.call_stack.cur_frame().ip.ip += 2;
+                    
+                    if val.is_pointer() {
+                        let (ptr, tag) = val.as_pointer();
+                        match tag {
+                            PointerTag::Closure => {
+                                // Cast pointer back to FnClosure and clone it for modification
+                                let closure_ref = unsafe { &*(ptr as *const FnClosure) };
+                                let mut closure = closure_ref.clone();
                                 
-                                if upvalue.is_local {
-                                    // Create upvalue from local variable in current frame
-                                    self.add_local_upvalue(&mut closure, upvalue);
-                                } else {
-                                    // Copy upvalue from parent frame
-                                    self.add_remote_upvalue(&mut closure, upvalue);
+                                // Process upvalues that follow the closure constant
+                                for _ in 0..closure.func.upvalue_count {
+                                    let frame = self.call_stack.cur_frame();
+                                    let bytecode = &frame.closure.func.chunk.code;
+                                    let offset = frame.ip.ip;
+                                    let upvalue = Upvalue::from_bytes(bytecode, offset);
+                                    // Skip the upvalue bytes we just read
+                                    let _ = frame; // Explicitly drop to release borrow
+                                    self.call_stack.cur_frame().ip.ip += 2;
+                                    
+                                    if upvalue.is_local {
+                                        // Create upvalue from local variable in current frame
+                                        self.add_local_upvalue(&mut closure, upvalue);
+                                    } else {
+                                        // Copy upvalue from parent frame
+                                        self.add_remote_upvalue(&mut closure, upvalue);
+                                    }
                                 }
+                                
+                                // Store the modified closure back as a new heap allocation
+                                let closure_box = Box::new(closure);
+                                let closure_ptr = Box::into_raw(closure_box) as *const ();
+                                let closure_nan_boxed = NanBoxedValue::pointer(closure_ptr, PointerTag::Closure);
+                                self.stack.push(closure_nan_boxed);
                             }
-                            self._push(Ok(WeaveType::Closure(closure)))?;
+                            _ => {
+                                return Err(VMError::CompilationError(format!("Expected closure pointer, found {:?} pointer", tag)));
+                            }
                         }
-                        x => {
-                            return Err(VMError::CompilationError(format!("Expected callable closure, found {:?}", x)));
-                        }
+                    } else {
+                        return Err(VMError::CompilationError(format!("Expected closure pointer, found non-pointer value")));
                     }
                 }
                 Op::Call => {
