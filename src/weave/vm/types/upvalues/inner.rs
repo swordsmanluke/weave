@@ -98,7 +98,7 @@ impl  UpvalAccessor for OpenUpvalue {
 
 #[derive(Debug, Clone)]
 pub struct ClosedUpvalue {
-    value: Rc<RefCell<WeaveType>>
+    pub value: Rc<RefCell<WeaveType>>
 }
 
 impl ClosedUpvalue {
