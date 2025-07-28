@@ -1,6 +1,6 @@
 use crate::weave::compiler::Compiler;
 use crate::weave::vm::instruction_pointer::IP;
-use crate::weave::vm::types::{FnClosure, NativeFn, NativeFnType, Upvalue, WeaveType, WeaveUpvalue};
+use crate::weave::vm::types::{FnClosure, NanBoxedValue, NativeFn, NativeFnType, Upvalue, WeaveNumber, WeaveString, WeaveType, WeaveUpvalue};
 use crate::weave::vm::types::errors::OpResult;
 use crate::weave::{Op};
 use std::collections::HashMap;
@@ -10,9 +10,9 @@ use crate::{log_debug, log_error};
 
 pub struct VM {
     call_stack: CallStack,
-    stack: Vec<WeaveType>,
-    globals: HashMap<String, WeaveType>,
-    last_value: WeaveType,
+    stack: Vec<NanBoxedValue>,
+    globals: HashMap<String, NanBoxedValue>,
+    last_value: NanBoxedValue,
     open_upvalues: Vec<WeaveUpvalue>,
 }
 
@@ -154,7 +154,7 @@ impl VMError {
     }
 }
 
-pub type VMResult = Result<WeaveType, VMError>;
+pub type VMResult = Result<NanBoxedValue, VMError>;
 
 impl VM {
     pub fn new() -> VM {
@@ -162,7 +162,7 @@ impl VM {
             call_stack: CallStack::new(),
             stack: Vec::with_capacity(255),
             globals: HashMap::new(),
-            last_value: WeaveType::None,
+            last_value: NanBoxedValue::null(),
             open_upvalues: Vec::new(),
         };
 
@@ -171,6 +171,75 @@ impl VM {
         });
 
         vm
+    }
+
+    // Temporary conversion helpers - will be removed when WeaveType is fully eliminated
+    fn weave_type_to_nan_boxed(&self, wt: WeaveType) -> NanBoxedValue {
+        use crate::weave::vm::types::PointerTag;
+        match wt {
+            WeaveType::None => NanBoxedValue::null(),
+            WeaveType::Boolean(b) => NanBoxedValue::boolean(b),
+            WeaveType::Number(n) => NanBoxedValue::number(n.to_f64()),
+            WeaveType::String(s) => {
+                // For now, leak string to get a stable pointer - this is temporary
+                let leaked = Box::leak(Box::new(s));
+                NanBoxedValue::pointer(leaked as *const _ as *const (), PointerTag::String)
+            },
+            WeaveType::Closure(c) => {
+                let leaked = Box::leak(Box::new(c));
+                NanBoxedValue::pointer(leaked as *const _ as *const (), PointerTag::Closure)
+            },
+            WeaveType::NativeFn(f) => {
+                let leaked = Box::leak(Box::new(f));
+                NanBoxedValue::pointer(leaked as *const _ as *const (), PointerTag::NativeFn)
+            },
+            WeaveType::Upvalue(u) => {
+                let leaked = Box::leak(Box::new(u));
+                NanBoxedValue::pointer(leaked as *const _ as *const (), PointerTag::Upvalue)
+            },
+        }
+    }
+
+    fn nan_boxed_to_weave_type(&self, nb: NanBoxedValue) -> WeaveType {
+        use crate::weave::vm::types::PointerTag;
+        if nb.is_null() {
+            WeaveType::None
+        } else if nb.is_boolean() {
+            WeaveType::Boolean(nb.as_boolean())
+        } else if nb.is_number() {
+            WeaveType::Number(nb.as_number().into())
+        } else if nb.is_pointer() {
+            let (ptr, tag) = nb.as_pointer();
+            match tag {
+                PointerTag::String => {
+                    unsafe {
+                        let string_ref = &*(ptr as *const WeaveString);
+                        WeaveType::String(string_ref.clone())
+                    }
+                }
+                PointerTag::Closure => {
+                    unsafe {
+                        let closure_ref = &*(ptr as *const FnClosure);
+                        WeaveType::Closure(closure_ref.clone())
+                    }
+                }
+                PointerTag::NativeFn => {
+                    unsafe {
+                        let fn_ref = &*(ptr as *const Rc<NativeFn>);
+                        WeaveType::NativeFn(fn_ref.clone())
+                    }
+                }
+                PointerTag::Upvalue => {
+                    unsafe {
+                        let upvalue_ref = &*(ptr as *const WeaveUpvalue);
+                        WeaveType::Upvalue(upvalue_ref.clone())
+                    }
+                }
+                _ => WeaveType::None,
+            }
+        } else {
+            WeaveType::None
+        }
     }
 
     pub fn interpret(&mut self, source: &str) -> VMResult {
@@ -183,7 +252,7 @@ impl VM {
         
         let top_frame = FnClosure::new(Rc::new(func));
 
-        self.stack.push(WeaveType::Closure(top_frame.clone()));
+        self._push_weave_type(WeaveType::Closure(top_frame.clone()));
         self.call_stack.push(top_frame, 0);
 
         self.debug("Interpreting...");
@@ -202,16 +271,16 @@ impl VM {
         }
     }
     
-    pub fn get_stack_var(&self, slot: usize) -> Option<&WeaveType> {
-        self.stack.get(slot)
+    pub fn get_stack_var(&self, slot: usize) -> Option<WeaveType> {
+        self.stack.get(slot).map(|nb| self.nan_boxed_to_weave_type(*nb))
     }
     
     pub fn clone_stack_var(&mut self, slot: usize) -> WeaveType { 
-        self.stack[slot].clone() 
+        self.nan_boxed_to_weave_type(self.stack[slot])
     }
 
     pub fn set_stack_var(&mut self, slot: usize, value: WeaveType) {
-        self.stack[slot] = value;
+        self.stack[slot] = self.weave_type_to_nan_boxed(value);
     }
     
     pub fn stack_len(&self) -> usize {
@@ -298,6 +367,11 @@ impl VM {
         self.call_stack.get_constant(idx)
     }
 
+    fn _push_weave_type(&mut self, value: WeaveType) {
+        let nan_boxed = self.weave_type_to_nan_boxed(value);
+        self.stack.push(nan_boxed);
+    }
+
     fn _push(&mut self, value: OpResult) -> Result<(), VMError> {
         // TODO: This is the where "malloc" would be in C
         // self.debug(&format!("PUSH: {:?}", value));
@@ -307,7 +381,9 @@ impl VM {
         // something went wrong.
         match value {
             Ok(v) => {
-                self.stack.push(v);
+                // Convert WeaveType to NanBoxedValue for now - will be removed in later subtasks
+                let nan_boxed = self.weave_type_to_nan_boxed(v);
+                self.stack.push(nan_boxed);
                 Ok(())
             }
             Err(msg) => {
@@ -321,15 +397,18 @@ impl VM {
         // TODO: This is _nearly_ where the "free" would be in C - basically as soon as the
         //       value returned here is dropped, it should be freed
         // self.debug(&format!("POP: {:?}", self._peek()));
-        self.stack.pop().unwrap_or(WeaveType::None)
+        let nan_boxed = self.stack.pop().unwrap_or(NanBoxedValue::null());
+        self.nan_boxed_to_weave_type(nan_boxed)
     }
 
     fn _peek(&self) -> WeaveType {
-        self.stack.last().unwrap_or(&WeaveType::None).clone()
+        let nan_boxed = self.stack.last().copied().unwrap_or(NanBoxedValue::null());
+        self.nan_boxed_to_weave_type(nan_boxed)
     }
     
-    fn _peek_ref(&self) -> &WeaveType {
-        self.stack.last().unwrap_or(&WeaveType::None)
+    fn _peek_ref(&self) -> WeaveType {
+        // Note: Can't return reference to converted value, so return owned value
+        self._peek()
     }
 
     fn _poppop(&mut self) -> [WeaveType; 2] {
@@ -393,7 +472,8 @@ impl VM {
                             }
                         }
                         // Don't pop from empty stack
-                        return Ok(result);
+                        let nan_boxed_result = self.weave_type_to_nan_boxed(result);
+                        return Ok(nan_boxed_result);
                     }
                     
                     // self.debug(&format!("Returning: {} from depth {}", result, self.stack.len()));
@@ -406,7 +486,7 @@ impl VM {
                     self.debug(&format!("Reading constant @ {:0x}", idx));
                     // Push constant directly (still need to clone for ownership)
                     let constant = self.call_stack.get_constant(idx).clone();
-                    self.stack.push(constant);
+                    self._push_weave_type(constant);
                 }
                 Op::Closure => {
                     let idx = self.call_stack.next_u16() as usize;
@@ -442,7 +522,8 @@ impl VM {
                 Op::Call => {
                     let arg_count= self.call_stack.next_byte() as usize;
                     let func_slot = (self.stack.len() - 1) - arg_count;
-                    let func = self.stack.get(func_slot).unwrap();
+                    let func_nan_boxed = self.stack.get(func_slot).unwrap();
+                    let func = self.nan_boxed_to_weave_type(*func_nan_boxed);
                     #[cfg(debug_assertions)]
                     self.debug(&format!("Taking {} @ {}", func, func_slot));
                     match func {
@@ -465,15 +546,18 @@ impl VM {
                             self.call_stack.push(f.clone(), func_slot);
                         }
                         WeaveType::NativeFn(f) => {
-                            // Use slice instead of Vec allocation for better performance
+                            // Convert NanBoxedValue args to WeaveType for native function call
                             let args = if arg_count > 0 {
                                 let last_arg = self.stack.len() - 1;
                                 let first_arg = last_arg - arg_count;
-                                &self.stack[first_arg..last_arg]
+                                let nan_boxed_args = &self.stack[first_arg..last_arg];
+                                let converted_args: Vec<WeaveType> = nan_boxed_args.iter()
+                                    .map(|nb| self.nan_boxed_to_weave_type(*nb))
+                                    .collect();
+                                (f.func)(&converted_args)?
                             } else {
-                                &[]
+                                (f.func)(&[])?
                             };
-                            (f.func)(args)?;
                         }
                         _ => {
                             return Err(VMError::RuntimeError { line: self.call_stack.line_number_at(-1), msg: "Only functions can be called".to_string() })
@@ -483,12 +567,13 @@ impl VM {
                 Op::SetLocal => {
                     let slot = self.call_stack.next_slot();
                     let value = self._pop();
+                    let nan_boxed_value = self.weave_type_to_nan_boxed(value.clone());
                     // Ensure stack is large enough for the slot
                     while self.stack.len() <= slot {
-                        self.stack.push(WeaveType::None);
+                        self.stack.push(NanBoxedValue::null());
                     }
-                    self.stack[slot] = value.clone();
-                    self.stack.push(value); // Push the assigned value back for expression semantics
+                    self.stack[slot] = nan_boxed_value;
+                    self._push_weave_type(value); // Push the assigned value back for expression semantics
                 }
                 Op::GetLocal => {
                     let slot = self.call_stack.next_slot();
@@ -499,8 +584,8 @@ impl VM {
                         });
                     }
                     // Use reference to avoid cloning during push
-                    let value = &self.stack[slot];
-                    self.stack.push(value.clone());
+                    let value = self.stack[slot];
+                    self.stack.push(value);
                 }
                 Op::GetUpvalue => {
                     let slot = self.call_stack.next_byte() as usize;
@@ -526,8 +611,9 @@ impl VM {
                     match name {
                         WeaveType::String(name) => {
                             self.debug(&format!("Declaring global: {} = {}", name, val));
-                            self.globals.insert(name.to_string(), val.clone());
-                            self.stack.push(val); // Push the assigned value back for expression semantics
+                            let nan_boxed_val = self.weave_type_to_nan_boxed(val.clone());
+                            self.globals.insert(name.to_string(), nan_boxed_val);
+                            self._push_weave_type(val); // Push the assigned value back for expression semantics
                         }
                         _ => { unreachable!("Only strings can become globals - how did you get here?"); }
                     }
@@ -537,7 +623,8 @@ impl VM {
                     match name {
                         WeaveType::String(name) => match self.globals.get(name.as_str()) {
                             Some(v) => {
-                                self._push(Ok(v.clone()))?;
+                                let value = self.nan_boxed_to_weave_type(*v);
+                                self._push(Ok(value))?;
                             }
                             None => {
                                 let line = self.call_stack.line_number_at(-1);
@@ -553,10 +640,10 @@ impl VM {
                 }
                 Op::ADD => {
                     // Optimize arithmetic: direct stack access instead of _poppop + _push
-                    let b = self.stack.pop().unwrap_or(WeaveType::None);
-                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    let b = self._pop();
+                    let a = self._pop();
                     match a + b {
-                        Ok(result) => self.stack.push(result),
+                        Ok(result) => self._push_weave_type(result),
                         Err(e) => return Err(VMError::RuntimeError { 
                             line: self.call_stack.line_number_at(-1), 
                             msg: format!("Addition failed: {}", e) 
@@ -564,10 +651,10 @@ impl VM {
                     }
                 }
                 Op::SUB => {
-                    let b = self.stack.pop().unwrap_or(WeaveType::None);
-                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    let b = self._pop();
+                    let a = self._pop();
                     match a - b {
-                        Ok(result) => self.stack.push(result),
+                        Ok(result) => self._push_weave_type(result),
                         Err(e) => return Err(VMError::RuntimeError { 
                             line: self.call_stack.line_number_at(-1), 
                             msg: format!("Subtraction failed: {}", e) 
@@ -575,10 +662,10 @@ impl VM {
                     }
                 }
                 Op::MUL => {
-                    let b = self.stack.pop().unwrap_or(WeaveType::None);
-                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    let b = self._pop();
+                    let a = self._pop();
                     match a * b {
-                        Ok(result) => self.stack.push(result),
+                        Ok(result) => self._push_weave_type(result),
                         Err(e) => return Err(VMError::RuntimeError { 
                             line: self.call_stack.line_number_at(-1), 
                             msg: format!("Multiplication failed: {}", e) 
@@ -586,10 +673,10 @@ impl VM {
                     }
                 }
                 Op::DIV => {
-                    let b = self.stack.pop().unwrap_or(WeaveType::None);
-                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    let b = self._pop();
+                    let a = self._pop();
                     match a / b {
-                        Ok(result) => self.stack.push(result),
+                        Ok(result) => self._push_weave_type(result),
                         Err(e) => return Err(VMError::RuntimeError { 
                             line: self.call_stack.line_number_at(-1), 
                             msg: format!("Division failed: {}", e) 
@@ -597,10 +684,10 @@ impl VM {
                     }
                 }
                 Op::TRUE => {
-                    self.stack.push(WeaveType::Boolean(true));
+                    self._push_weave_type(WeaveType::Boolean(true));
                 }
                 Op::FALSE => {
-                    self.stack.push(WeaveType::Boolean(false));
+                    self._push_weave_type(WeaveType::Boolean(false));
                 }
                 Op::NOT => {
                     // Everything is truthy in Weave, so we just need to negate
@@ -610,19 +697,19 @@ impl VM {
                 }
                 Op::GREATER => {
                     // Optimize comparison: direct stack access
-                    let b = self.stack.pop().unwrap_or(WeaveType::None);
-                    let a = self.stack.pop().unwrap_or(WeaveType::None);
-                    self.stack.push(WeaveType::Boolean(a > b));
+                    let b = self._pop();
+                    let a = self._pop();
+                    self._push_weave_type(WeaveType::Boolean(a > b));
                 }
                 Op::LESS => {
-                    let b = self.stack.pop().unwrap_or(WeaveType::None);
-                    let a = self.stack.pop().unwrap_or(WeaveType::None);
-                    self.stack.push(WeaveType::Boolean(a < b));
+                    let b = self._pop();
+                    let a = self._pop();
+                    self._push_weave_type(WeaveType::Boolean(a < b));
                 }
                 Op::EQUAL => {
-                    let b = self.stack.pop().unwrap_or(WeaveType::None);
-                    let a = self.stack.pop().unwrap_or(WeaveType::None);
-                    self.stack.push(WeaveType::Boolean(a == b));
+                    let b = self._pop();
+                    let a = self._pop();
+                    self._push_weave_type(WeaveType::Boolean(a == b));
                 }
                 Op::PRINT => {
                     // Don't remove the top value from the stack - printing a value evaluates
@@ -678,7 +765,7 @@ impl VM {
             }
         }
 
-        Ok(self.last_value.clone())
+        Ok(self.last_value)
     }
 
     fn debug(&self, msg: &str) {
@@ -705,7 +792,8 @@ impl VM {
 
     fn define_native(&mut self, func: Rc<NativeFn>) {
         let name = func.name.to_string();
-        self.globals.insert(name, WeaveType::NativeFn(func));
+        let nan_boxed_func = self.weave_type_to_nan_boxed(WeaveType::NativeFn(func));
+        self.globals.insert(name, nan_boxed_func);
     }
 
     fn reset_stack(&mut self) {
@@ -725,7 +813,9 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret("5 + 2 * 3");
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
-        assert_eq!(res.unwrap(), WeaveType::from(11.0));
+        let result = res.unwrap();
+        assert!(result.is_number());
+        assert_eq!(result.as_number(), 11.0);
     }
 
     #[test]

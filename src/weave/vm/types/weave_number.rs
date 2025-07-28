@@ -18,6 +18,14 @@ impl WeaveNumber {
             _ => self.clone(),
         }
     }
+    
+    pub fn to_f64(&self) -> f64 {
+        match self {
+            WeaveNumber::Float(f) => *f,
+            WeaveNumber::Int(i) => *i as f64,
+            WeaveNumber::UInt(u) => *u as f64,
+        }
+    }
 }
 
 impl From<f64> for WeaveNumber{

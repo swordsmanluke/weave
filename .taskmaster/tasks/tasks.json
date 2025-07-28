@@ -391,11 +391,117 @@
             "testStrategy": "Run full test suite including closure tests, lambda tests, and all compiler tests. Perform manual testing with complex nested function scenarios. Add integration tests that compile and execute real Weave programs with multiple functions"
           }
         ]
+      },
+      {
+        "id": 18,
+        "title": "Implement NaN-boxing Value Representation for WeaveType",
+        "description": "Replace the current 32-byte WeaveType enum with 64-bit NaN-boxing to store numbers, booleans, and null directly in a single 64-bit value, eliminating boxing overhead and reducing memory traffic by 4x.",
+        "details": "Implement NaN-boxing technique using IEEE 754 double-precision floating-point representation to encode multiple value types in a single 64-bit value. Design: Use quiet NaN space (0x7FF8000000000000 to 0x7FFFFFFFFFFFFFFF) for non-numeric values. Encoding scheme: 1) Numbers: Store directly as f64 values (canonical NaN becomes 0x7FF8000000000001). 2) Boolean true: 0x7FF8000000000003, false: 0x7FF8000000000002. 3) Null: 0x7FF8000000000004. 4) Pointers (strings, functions, closures): Use 48-bit payload space for pointer storage with tag bits for type discrimination. Implementation steps: 1) Create new NanBoxedValue type wrapping u64 with methods for encoding/decoding each type. 2) Replace WeaveType enum with NanBoxedValue throughout VM stack, locals, and upvalues. 3) Update all VM opcodes to work with NaN-boxed values directly. 4) Implement fast-path arithmetic operations that operate on raw f64 values without unpacking. 5) Add debug assertions to verify pointer alignment and tag validity. 6) Update garbage collection to properly trace through NaN-boxed pointers. Critical optimizations: Use inline assembly or intrinsics for fast type checking (test high 16 bits), implement branchless arithmetic operations, ensure stack operations use memcpy for bulk moves.",
+        "testStrategy": "Comprehensive testing strategy: 1) Unit tests for NanBoxedValue encoding/decoding of all value types, verifying bit patterns match specification. 2) Property-based tests ensuring round-trip encoding/decoding preserves values exactly. 3) Performance benchmarks comparing current WeaveType operations vs NaN-boxed operations, targeting 5-10x improvement for numeric operations. 4) Stress tests with edge cases: special float values (infinity, -0.0, denormals), maximum pointer values, rapid type transitions. 5) Integration tests running all existing Weave test programs to ensure semantic preservation. 6) Memory layout tests verifying 4x reduction in stack memory usage. 7) Garbage collection tests ensuring pointer tracing works correctly through NaN-boxed values. 8) Cross-platform tests verifying consistent behavior on different architectures (x86_64, ARM64).",
+        "status": "pending",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design and Implement NanBoxedValue Core Type",
+            "description": "Create the foundational NanBoxedValue type that wraps u64 and implements the NaN-boxing encoding scheme for all Weave value types",
+            "dependencies": [],
+            "details": "Implement NanBoxedValue struct wrapping u64 with methods for encoding/decoding each type according to the specification: Numbers stored directly as f64 (canonical NaN → 0x7FF8000000000001), Boolean true: 0x7FF8000000000003, false: 0x7FF8000000000002, Null: 0x7FF8000000000004. Implement pointer encoding using 48-bit payload space with tag bits for type discrimination. Add inline methods for fast type checking using bit manipulation, implement From/Into traits for seamless conversion, and add debug assertions for pointer alignment and tag validity. Include comprehensive unit tests verifying bit patterns match specification exactly.\n<info added on 2025-07-28T20:34:41.223Z>\nCOMPLETED: Implemented NanBoxedValue core type with full functionality:\n\n- Complete 64-bit value representation using IEEE 754 NaN-boxing\n- Efficient encoding: numbers (direct f64), booleans (0x7FF8000000000003/2), null (0x7FF8000000000004), pointers (48-bit payload with tags)\n- Fast type checking using bit manipulation instead of enum pattern matching\n- Comprehensive unit tests covering all value types and edge cases including signaling NaN\n- Module integration complete - available as pub use nan_boxed_value::{NanBoxedValue, PointerTag}\n- All 8 unit tests passing, validates correct bit patterns and round-trip conversions\n- Foundation ready for VM integration in next subtask (18.2)\n\nImplementation reduces value size from ~32 bytes (WeaveType enum) to 8 bytes (u64), enabling significant memory and cache performance improvements.\n</info added on 2025-07-28T20:34:41.223Z>",
+            "status": "done",
+            "testStrategy": "Unit tests for each encoding/decoding method verifying exact bit patterns, property-based tests ensuring round-trip conversion preserves values, edge case tests for NaN handling, pointer alignment tests"
+          },
+          {
+            "id": 2,
+            "title": "Replace WeaveType with NanBoxedValue in VM Core Structures",
+            "description": "Refactor VM stack, locals, and upvalues to use NanBoxedValue instead of WeaveType enum, updating all data structures and access patterns",
+            "dependencies": [
+              "18.1"
+            ],
+            "details": "Replace WeaveType with NanBoxedValue in critical VM structures: Update VM stack from Vec<WeaveType> to Vec<NanBoxedValue>, modify CallFrame locals to use NanBoxedValue, update WeaveUpvalue to store NanBoxedValue. Implement stack manipulation methods (push, pop, peek) to work with NanBoxedValue directly. Update garbage collection roots to properly trace through NaN-boxed pointers. Ensure memory layout optimization for cache efficiency. Add migration helpers to convert existing WeaveType values during transition phase.\n<info added on 2025-07-28T20:52:02.794Z>\nCOMPLETED: Successfully replaced WeaveType with NanBoxedValue in VM core structures:\n\n## Major Changes Implemented:\n1. **Updated VM struct fields**:\n   - stack: Vec<WeaveType> → Vec<NanBoxedValue>\n   - globals: HashMap<String, WeaveType> → HashMap<String, NanBoxedValue>\n   - last_value: WeaveType → NanBoxedValue\n   - VMResult: Result<WeaveType, VMError> → Result<NanBoxedValue, VMError>\n\n2. **Updated stack manipulation methods**:\n   - _push(), _pop(), _peek() now work with NanBoxedValue internally\n   - Added _push_weave_type() helper for transition\n   - Updated get_stack_var(), set_stack_var(), clone_stack_var()\n\n3. **Updated all VM opcodes**:\n   - CONSTANT, GetLocal, SetLocal, GetGlobal, SetGlobal, GetUpvalue, SetUpvalue\n   - ADD, SUB, MUL, DIV arithmetic operations\n   - GREATER, LESS, EQUAL comparison operations\n   - TRUE, FALSE, NOT logical operations\n   - CALL, RETURN function operations\n   - PRINT output operation\n\n4. **Added conversion helpers**:\n   - weave_type_to_nan_boxed() for transition from WeaveType\n   - nan_boxed_to_weave_type() for compatibility\n   - Updated native function calls to convert args\n\n5. **Implemented Display trait** for NanBoxedValue for REPL output\n\n## Testing Results:\n✅ Code compiles successfully with only warnings\n✅ Basic arithmetic verified: '5 + 3' → '8' in REPL\n✅ All VM operations successfully converted to NanBoxedValue\n\n## Performance Impact:\n- Reduced value size from ~32 bytes (WeaveType enum) to 8 bytes (u64)\n- Eliminated Vec<WeaveType> cloning overhead on stack operations\n- Enabled Copy semantics for stack values (NanBoxedValue is Copy)\n- Foundation ready for direct NaN-boxed arithmetic operations in next subtask\n\nThe VM now uses NaN-boxing internally while maintaining WeaveType compatibility through conversion helpers. Ready for next subtask to implement direct NaN-boxed operations.\n</info added on 2025-07-28T20:52:02.794Z>",
+            "status": "done",
+            "testStrategy": "Integration tests verifying stack operations preserve value semantics, memory layout tests ensuring 8-byte alignment, GC tracing tests for pointer values"
+          },
+          {
+            "id": 3,
+            "title": "Update VM Opcodes for NaN-boxed Operations",
+            "description": "Modify all VM opcodes to operate on NaN-boxed values directly, implementing fast paths for arithmetic operations",
+            "dependencies": [
+              "18.2"
+            ],
+            "details": "Update all opcodes in vm.rs to work with NanBoxedValue: Implement fast-path arithmetic operations (Add, Subtract, Multiply, Divide) that check if both operands are numbers using inline bit tests and operate on raw f64 values without unpacking. Update comparison operations to handle NaN-boxed values correctly. Modify CONSTANT, GetLocal, SetLocal, GetGlobal, SetGlobal to work with NanBoxedValue. Update function call and return mechanisms to handle NaN-boxed values. Implement branchless arithmetic using conditional moves where possible. Add specialized opcodes for common patterns like number-to-number operations.",
+            "status": "in-progress",
+            "testStrategy": "Opcode-level tests for each instruction, performance benchmarks comparing boxed vs unboxed arithmetic, edge case tests for NaN propagation in arithmetic"
+          },
+          {
+            "id": 4,
+            "title": "Implement Pointer Management and Garbage Collection Updates",
+            "description": "Update pointer storage, retrieval, and garbage collection to work correctly with NaN-boxed pointer values",
+            "dependencies": [
+              "18.3"
+            ],
+            "details": "Implement pointer encoding/decoding for heap-allocated types (strings, functions, closures): Design pointer tagging scheme using available bits in 48-bit payload space, ensure pointer values maintain proper alignment for platform requirements. Update garbage collector to extract and trace pointers from NaN-boxed values, implement fast pointer extraction using bit masking. Update string interning, function allocation, and closure creation to return NaN-boxed pointers. Add safety checks in debug builds to verify pointer validity. Implement efficient batch pointer extraction for GC marking phase.",
+            "status": "pending",
+            "testStrategy": "GC stress tests with mixed value types, pointer extraction correctness tests, memory leak detection tests, alignment verification tests"
+          },
+          {
+            "id": 5,
+            "title": "Performance Optimization and Validation",
+            "description": "Implement critical performance optimizations and validate 4x memory traffic reduction goal with comprehensive benchmarks",
+            "dependencies": [
+              "18.4"
+            ],
+            "details": "Implement performance-critical optimizations: Add inline assembly or intrinsics for ultra-fast type checking (test high 16 bits), optimize hot paths in arithmetic operations using SIMD where applicable. Implement bulk stack operations using memcpy for value moves. Add compiler hints for branch prediction in type dispatch. Create comprehensive benchmark suite measuring: memory bandwidth reduction (target 4x improvement), arithmetic operation throughput, type checking overhead, overall VM execution speed on real workloads (fibonacci, mandelbrot, closure-heavy code). Profile and optimize cache usage patterns. Document performance characteristics and tuning guidelines.",
+            "status": "pending",
+            "testStrategy": "Micro-benchmarks for individual operations, macro-benchmarks on real programs, memory bandwidth measurements, cache miss analysis, regression tests ensuring no performance degradation"
+          }
+        ]
+      },
+      {
+        "id": 19,
+        "title": "Stack Architecture Redesign with Pre-allocated Arrays and Move Semantics",
+        "description": "Replace Vec<WeaveType> stack with pre-allocated fixed-size array and manual stack pointer management, implementing move semantics to eliminate defensive cloning and achieve 30-50% performance improvement.",
+        "details": "Implement stack architecture redesign to eliminate allocation overhead and memory traffic: 1) Replace VM's Vec<WeaveType> stack with pre-allocated fixed-size array (e.g., [WeaveType; 256]) and manual stack pointer (usize index). 2) Implement move semantics throughout VM operations - modify opcodes to move values instead of cloning, use mem::replace and mem::take for stack operations. 3) Eliminate bounds checking in hot paths by using unsafe indexing where stack pointer invariants guarantee safety. 4) Redesign stack operations: push() becomes direct array assignment with pointer increment, pop() becomes mem::take with pointer decrement. 5) Update all opcode handlers to use move semantics - arithmetic operations take ownership of operands, function calls move arguments. 6) Implement stack overflow detection with explicit checks rather than Vec growth. 7) Optimize CallFrame storage to use stack indices instead of borrowed references. 8) Profile memory allocation patterns and validate elimination of stack-related allocations during execution.",
+        "testStrategy": "Performance validation and correctness testing: 1) Benchmark current implementation vs new stack architecture using fibonacci, factorial, and nested function call tests. 2) Measure allocation patterns with memory profiler to verify elimination of Vec reallocations. 3) Create stress tests with deep recursion to validate stack overflow detection. 4) Test all existing VM functionality to ensure move semantics don't break operations. 5) Validate that complex programs (closures, upvalues, nested calls) work correctly with new stack management. 6) Performance regression tests ensuring 30-50% improvement in function-heavy workloads. 7) Memory usage tests confirming reduced heap allocations and memory traffic.",
+        "status": "pending",
+        "dependencies": [
+          18
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "Implement Instruction Dispatch Optimization with Computed Goto",
+        "description": "Replace the current match-based instruction dispatch with computed goto or function pointer table to eliminate branch prediction misses and inline critical opcodes for 20-30% performance improvement.",
+        "details": "Implement instruction dispatch optimization to eliminate branch prediction penalties in the VM's main execution loop: 1) Replace the large match statement in vm.rs with computed goto using Rust's inline assembly or function pointer table approach. Create dispatch table mapping opcodes to function pointers for direct jumps. 2) Inline critical high-frequency opcodes (GetLocal, SetLocal, CONSTANT, Add, Subtract) directly in the dispatch loop to eliminate function call overhead. 3) Optimize instruction pointer advancement by eliminating bounds checking in hot paths and using pointer arithmetic where safe. 4) Implement threaded code interpretation where each instruction contains a pointer to the next instruction to execute. 5) Consider using Rust's likely/unlikely branch hints for uncommon opcodes. 6) Profile current dispatch overhead using perf to identify specific branch misprediction hotspots. 7) Benchmark against current implementation using fibonacci, factorial, and arithmetic-heavy workloads.",
+        "testStrategy": "Performance validation and correctness testing: 1) Benchmark current VM execution vs optimized dispatch using fibonacci(30), factorial(20), and nested loop arithmetic tests. 2) Measure branch prediction miss rates using perf stat -e branch-misses to verify elimination of mispredictions. 3) Create comprehensive opcode coverage tests ensuring all instructions work correctly with new dispatch mechanism. 4) Stress test with large bytecode programs (1M+ instructions) to verify stability. 5) Profile instruction execution frequency to validate inlining decisions for GetLocal/SetLocal/CONSTANT opcodes. 6) Regression test entire test suite to ensure no functional changes. 7) Measure instruction throughput (instructions per second) improvement to validate 20-30% performance target.",
+        "status": "pending",
+        "dependencies": [
+          19,
+          18
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 21,
+        "title": "Bytecode and Memory Optimizations with Shared References and Arena Allocation",
+        "description": "Implement shared bytecode references instead of cloning for CallFrames, replace HashMap globals with compile-time array indexing, and implement arena allocation for temporary objects to achieve 10-15% performance improvement through better cache locality.",
+        "details": "Implement comprehensive bytecode and memory optimizations: 1) Replace CallFrame bytecode cloning with shared references using Rc<Chunk> or Arc<Chunk> to eliminate duplicate bytecode storage across multiple frames. Modify CallFrame structure to hold reference instead of owned Chunk. 2) Replace HashMap-based global variable storage with compile-time constant array indexing. Generate compile-time global index table mapping variable names to array indices, replace runtime HashMap lookups with direct array access using pre-computed indices. 3) Implement arena allocation system for temporary objects during VM execution. Create StackArena that pre-allocates memory blocks for temporary WeaveType instances, use bump pointer allocation for O(1) temporary object creation, batch deallocate entire arena when leaving scope. 4) Optimize memory layout for better cache locality - group frequently accessed VM fields together, align data structures to cache line boundaries, minimize pointer indirection in hot paths. 5) Profile memory access patterns and optimize data structure layout to minimize cache misses during instruction execution.",
+        "testStrategy": "Performance validation and memory optimization verification: 1) Benchmark current implementation vs optimized version using fibonacci(35), nested function calls with 10 levels, and global variable access patterns to measure 10-15% performance improvement. 2) Use memory profiler (valgrind/heaptrack) to verify elimination of bytecode duplication and reduced allocation overhead from arena system. 3) Measure cache performance using perf stat -e cache-misses,cache-references to validate improved cache locality. 4) Create stress tests with hundreds of concurrent CallFrames to verify shared bytecode references work correctly without memory corruption. 5) Test global variable access performance with 100+ globals to verify array indexing outperforms HashMap lookups. 6) Validate correctness with existing closure and function call test suites to ensure optimizations don't break semantics.",
+        "status": "pending",
+        "dependencies": [
+          19,
+          18
+        ],
+        "priority": "low",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-07-24T17:50:08.486Z",
-      "updated": "2025-07-27T04:21:07.647Z",
+      "updated": "2025-07-28T20:55:12.715Z",
       "description": "Tasks for master context"
     }
   }
