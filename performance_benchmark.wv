@@ -1,0 +1,26 @@
+# Performance benchmark for closure hot loop execution
+# This will help us identify remaining bottlenecks after NaN-boxing optimization
+
+fn create_counter() {
+    count = 0
+    fn counter() {
+        count = count + 1
+        count
+    }
+    counter
+}
+
+counter = create_counter()
+
+# Hot loop test - reduced to 5K iterations for performance testing 
+iterations = 5000
+i = 0
+puts("Starting benchmark...")
+
+while i < iterations {
+    result = counter()
+    i = i + 1
+}
+
+puts("Completed")
+puts(result)  # Should be 5000

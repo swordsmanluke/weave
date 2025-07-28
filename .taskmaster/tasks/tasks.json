@@ -109,7 +109,7 @@
             "title": "Profile Performance Bottlenecks",
             "description": "Identify specific performance bottlenecks in closure hot loop execution",
             "details": "Use profiling tools to identify where the 55-second execution time for 5K iterations is being spent. Focus on upvalue access patterns, clone operations, and RefCell borrowing overhead. Create performance baseline measurements.",
-            "status": "in-progress",
+            "status": "done",
             "dependencies": [],
             "parentTaskId": 8
           },
@@ -118,7 +118,7 @@
             "title": "Optimize Upvalue Access Patterns",
             "description": "Reduce clone operations and improve upvalue access efficiency",
             "details": "Minimize .clone() operations in GetUpvalue and SetUpvalue opcodes. Implement borrowing-based access patterns where possible. Optimize the upvalue.value() and upvalue.set() methods to avoid unnecessary cloning of WeaveType objects. Focus on hot-loop paths in closure calls.",
-            "status": "pending",
+            "status": "in-progress",
             "dependencies": [
               "8.1"
             ],
@@ -501,7 +501,7 @@
     ],
     "metadata": {
       "created": "2025-07-24T17:50:08.486Z",
-      "updated": "2025-07-28T20:55:12.715Z",
+      "updated": "2025-07-28T21:56:39.149Z",
       "description": "Tasks for master context"
     }
   }

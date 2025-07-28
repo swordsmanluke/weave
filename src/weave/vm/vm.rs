@@ -174,7 +174,7 @@ impl VM {
     }
 
     // Temporary conversion helpers - will be removed when WeaveType is fully eliminated
-    fn weave_type_to_nan_boxed(&self, wt: WeaveType) -> NanBoxedValue {
+    pub fn weave_type_to_nan_boxed(&self, wt: WeaveType) -> NanBoxedValue {
         use crate::weave::vm::types::PointerTag;
         match wt {
             WeaveType::None => NanBoxedValue::null(),
@@ -200,7 +200,7 @@ impl VM {
         }
     }
 
-    fn nan_boxed_to_weave_type(&self, nb: NanBoxedValue) -> WeaveType {
+    pub fn nan_boxed_to_weave_type(&self, nb: NanBoxedValue) -> WeaveType {
         use crate::weave::vm::types::PointerTag;
         if nb.is_null() {
             WeaveType::None
@@ -589,18 +589,18 @@ impl VM {
                 }
                 Op::GetUpvalue => {
                     let slot = self.call_stack.next_byte() as usize;
-                    // Access upvalue directly by cloning only the Rc (cheap)
+                    // Ultra-fast path: direct NanBoxedValue access with Copy semantics
                     let upvalue = self.call_stack.cur_frame().closure.upvalues[slot].clone();
-                    let value = upvalue.get_direct(self);
-                    self._push(Ok(value))?;
+                    let nan_boxed_value = upvalue.get_fast(self);
+                    self.stack.push(nan_boxed_value);
                 }
                 Op::SetUpvalue => {
                     let slot = self.call_stack.next_byte() as usize;
-                    let v = self._peek();
-                    // Clone only the Rc (cheap) to avoid borrowing conflicts
+                    // Ultra-fast path: direct NanBoxedValue access with Copy semantics
+                    let nan_boxed_value = self.stack[self.stack.len() - 1]; // peek top of stack
                     let upvalue = self.call_stack.frames.last().unwrap()
                         .closure.upvalues[slot].clone();
-                    upvalue.set_direct(v, self);
+                    upvalue.set_fast(nan_boxed_value, self);
                 }
                 Op::SetGlobal => {
                     // Previous to this we should have processed an expression (val)
