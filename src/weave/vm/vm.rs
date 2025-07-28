@@ -24,7 +24,9 @@ pub enum VMError {
 }
 
 struct CallStack  {
-    frames: Vec<CallFrame>
+    frames: Vec<CallFrame>,
+    // Simple frame pool to avoid allocations in hot loops
+    frame_pool: Vec<CallFrame>,
 }
 
 pub struct CallFrame {
@@ -38,6 +40,13 @@ impl CallFrame {
         let ip = IP::new(&closure.func.chunk.code);
         CallFrame { closure, ip, slot}
     }
+    
+    /// Reuse this frame for a new function call (avoids allocation)
+    pub fn reset(&mut self, closure: FnClosure, slot: usize) {
+        self.closure = closure;
+        self.slot = slot;
+        self.ip = IP::new(&self.closure.func.chunk.code);
+    }
 
     pub fn i(&self, idx: usize) -> usize {
         self.slot + idx
@@ -46,16 +55,33 @@ impl CallFrame {
 
 impl CallStack {
     pub fn new() -> CallStack {
-        CallStack { frames: Vec::new() }
+        CallStack { 
+            frames: Vec::new(),
+            frame_pool: Vec::new(),
+        }
     }
     
     pub fn push(&mut self, closure: FnClosure, slot: usize) {
-        let frame = CallFrame::new(closure, slot);
-        self.frames.push(frame);
+        // Try to reuse a frame from the pool first
+        if let Some(mut frame) = self.frame_pool.pop() {
+            frame.reset(closure, slot);
+            self.frames.push(frame);
+        } else {
+            // Create new frame only if pool is empty
+            let frame = CallFrame::new(closure, slot);
+            self.frames.push(frame);
+        }
     }
     
     pub fn pop(&mut self) {
-        self.frames.pop();
+        // Return the frame to the pool for reuse instead of dropping it
+        if let Some(frame) = self.frames.pop() {
+            // Keep a reasonable pool size to avoid unbounded memory growth
+            if self.frame_pool.len() < 16 {
+                self.frame_pool.push(frame);
+            }
+            // If pool is full, just drop the frame (normal behavior)
+        }
     }
     
     pub fn disassemble(&self, name: &str) {
