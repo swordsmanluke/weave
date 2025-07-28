@@ -418,7 +418,8 @@ impl VM {
                     while self.stack.len() <= slot {
                         self.stack.push(WeaveType::None);
                     }
-                    self.stack[slot] = value;
+                    self.stack[slot] = value.clone();
+                    self.stack.push(value); // Push the assigned value back for expression semantics
                 }
                 Op::GetLocal => {
                     let slot = self.call_stack.next_slot();
@@ -458,7 +459,8 @@ impl VM {
                     match name {
                         WeaveType::String(name) => {
                             self.debug(&format!("Declaring global: {} = {}", name, val));
-                            self.globals.insert(name.to_string(), val);
+                            self.globals.insert(name.to_string(), val.clone());
+                            self.stack.push(val); // Push the assigned value back for expression semantics
                         }
                         _ => { unreachable!("Only strings can become globals - how did you get here?"); }
                     }
