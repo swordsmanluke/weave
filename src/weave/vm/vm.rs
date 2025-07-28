@@ -421,10 +421,22 @@ impl VM {
                     self.debug(&format!("Taking {} @ {}", func, func_slot));
                     match func {
                         WeaveType::Closure(f) => {
-                            // Minimize clones: store closure, then use it
-                            let closure = f.clone();
-                            self.call_stack.push(closure.clone(), func_slot);
-                            self.call(closure, arg_count)?;
+                            // Inline validation to eliminate double cloning
+                            if f.func.arity != arg_count {
+                                return Err(VMError::RuntimeError { 
+                                    line: self.call_stack.line_number_at(-1), 
+                                    msg: format!("{} Expected {} arguments but got {}", f.func.name, f.func.arity, arg_count) 
+                                });
+                            }
+                            if self.call_stack.frames.len() > 100 {
+                                return Err(VMError::RuntimeError { 
+                                    line: self.call_stack.line_number_at(-1), 
+                                    msg: "Stack overflow".to_string() 
+                                });
+                            }
+                            
+                            // Single clone: only for CallFrame creation
+                            self.call_stack.push(f.clone(), func_slot);
                         }
                         WeaveType::NativeFn(f) => {
                             let args = if arg_count > 0 {
@@ -674,17 +686,6 @@ impl VM {
         self.call_stack.reset();
     }
     
-    fn call(&mut self, closure: FnClosure, arg_count: usize) -> VMResult {
-        let func = closure.func;
-        if func.arity != arg_count {
-            Err(VMError::RuntimeError { line: 0, msg: format!("{} Expected {} arguments but got {}", func.name, func.arity, arg_count) })
-        } else if self.call_stack.frames.len() > 100 {
-            Err(VMError::RuntimeError { line: 0, msg: "Stack overflow".to_string() })
-        } else {
-            // The function will be executed by the VM loop using the new call frame
-            Ok(WeaveType::None)
-        }
-    }
 }
 
 #[cfg(test)]
