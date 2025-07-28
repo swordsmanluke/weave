@@ -142,6 +142,7 @@ impl Disassemble for Op {
                 offset
             },
             Op::Closure => {
+                #[cfg(debug_assertions)]
                 print!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
                 let mut offset = offset + 1; // Skip the opcode, already consumed
 
@@ -151,6 +152,7 @@ impl Disassemble for Op {
 
                 // retrieve the value from the constants table and print it
                 let value = &chunk.constants[idx];
+                #[cfg(debug_assertions)]
                 println!("\t{0:04x}  {1}", idx, value);
                 
                 // Now read N upvalues, and show them too.
@@ -158,11 +160,15 @@ impl Disassemble for Op {
                     WeaveType::Closure(c) => {
                         for i in 0..c.func.upvalue_count {
                             let upvalue = Upvalue::from_bytes(&chunk.code, offset);
+                            #[cfg(debug_assertions)]
                             println!("\t\t{0}  {1:04x}", upvalue, i);
                             offset += 2;
                         }
                     }
-                    _ => { println!("\t\tNone"); }
+                    _ => { 
+                        #[cfg(debug_assertions)]
+                        println!("\t\tNone"); 
+                    }
                 }
                 
                 offset
@@ -206,6 +212,7 @@ impl Disassemble for Op {
                 offset + 2
             }
             Op::GetUpvalue | Op::SetUpvalue => {
+                #[cfg(debug_assertions)]
                 println!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
                 offset + 2
             }

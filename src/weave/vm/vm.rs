@@ -315,12 +315,18 @@ impl VM {
     pub fn run(&mut self) -> VMResult {
         if self.call_stack.is_empty() { return Err(VMError::InvalidChunk); }
 
+        eprintln!("VM::run() called - Starting execution");
         self.debug("Executing...");
         log_debug!("Starting VM execution", function = "main");
 
+        let mut opcode_times: std::collections::HashMap<String, (u64, u64)> = std::collections::HashMap::new(); // (total_ns, count)
+
+        eprintln!("VM entering main execution loop");
         while !self.call_stack.is_at_end() {
             // until ip offset > chunk size
             let op = self.call_stack.next_op();
+
+            let start_time = std::time::Instant::now();
 
             // self.debug(&format!("EVAL({:?})", op));
             match op {
@@ -339,6 +345,30 @@ impl VM {
                     
                     self.call_stack.pop();
                     if self.call_stack.is_empty() {
+                        eprintln!("VM returning early from RETURN with empty call stack");
+                        // Track the final opcode before early return
+                        let elapsed = start_time.elapsed().as_nanos() as u64;
+                        let opcode_name = format!("{:?}", op);
+                        let entry = opcode_times.entry(opcode_name).or_insert((0, 0));
+                        entry.0 += elapsed;
+                        entry.1 += 1;
+                        // Print profiling before early return
+                        {
+                            eprintln!("VM execution completed (early return). Opcodes tracked: {}", opcode_times.len());
+                            if !opcode_times.is_empty() {
+                                eprintln!("Opcode Performance Profile:");
+                                let mut sorted_opcodes: Vec<_> = opcode_times.iter().collect();
+                                sorted_opcodes.sort_by(|a, b| b.1.0.cmp(&a.1.0)); // Sort by total time desc
+                                for (opcode, (total_ns, count)) in sorted_opcodes.iter().take(10) {
+                                    let avg_ns = *total_ns / *count;
+                                    eprintln!("  {:15} {:8} calls, {:10} ns total, {:6} ns avg", 
+                                             opcode, count, total_ns, avg_ns);
+                                }
+                                eprintln!();
+                            } else {
+                                eprintln!("No opcodes were executed!");
+                            }
+                        }
                         // Don't pop from empty stack
                         return Ok(result);
                     }
@@ -349,9 +379,11 @@ impl VM {
                 Op::POP => { self._pop(); },
                 Op::CONSTANT => {
                     let idx = self.call_stack.next_u16() as usize;
+                    #[cfg(debug_assertions)]
                     self.debug(&format!("Reading constant @ {:0x}", idx));
-                    let v = Ok(self._read_constant(idx).clone());
-                    self._push(v)?;
+                    // Push constant directly (still need to clone for ownership)
+                    let constant = self.call_stack.get_constant(idx).clone();
+                    self.stack.push(constant);
                 }
                 Op::Closure => {
                     let idx = self.call_stack.next_u16() as usize;
@@ -483,26 +515,55 @@ impl VM {
                     self._push(v)?;
                 }
                 Op::ADD => {
-                    let [a, b] = self._poppop();
-                    self._push(a + b)?;
+                    // Optimize arithmetic: direct stack access instead of _poppop + _push
+                    let b = self.stack.pop().unwrap_or(WeaveType::None);
+                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    match a + b {
+                        Ok(result) => self.stack.push(result),
+                        Err(e) => return Err(VMError::RuntimeError { 
+                            line: self.call_stack.line_number_at(-1), 
+                            msg: format!("Addition failed: {}", e) 
+                        }),
+                    }
                 }
                 Op::SUB => {
-                    let [a, b] = self._poppop();
-                    self._push(a - b)?;
+                    let b = self.stack.pop().unwrap_or(WeaveType::None);
+                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    match a - b {
+                        Ok(result) => self.stack.push(result),
+                        Err(e) => return Err(VMError::RuntimeError { 
+                            line: self.call_stack.line_number_at(-1), 
+                            msg: format!("Subtraction failed: {}", e) 
+                        }),
+                    }
                 }
                 Op::MUL => {
-                    let [a, b] = self._poppop();
-                    self._push(a * b)?;
+                    let b = self.stack.pop().unwrap_or(WeaveType::None);
+                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    match a * b {
+                        Ok(result) => self.stack.push(result),
+                        Err(e) => return Err(VMError::RuntimeError { 
+                            line: self.call_stack.line_number_at(-1), 
+                            msg: format!("Multiplication failed: {}", e) 
+                        }),
+                    }
                 }
                 Op::DIV => {
-                    let [a, b] = self._poppop();
-                    self._push(a / b)?;
+                    let b = self.stack.pop().unwrap_or(WeaveType::None);
+                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    match a / b {
+                        Ok(result) => self.stack.push(result),
+                        Err(e) => return Err(VMError::RuntimeError { 
+                            line: self.call_stack.line_number_at(-1), 
+                            msg: format!("Division failed: {}", e) 
+                        }),
+                    }
                 }
                 Op::TRUE => {
-                    self._push(Ok(WeaveType::Boolean(true)))?;
+                    self.stack.push(WeaveType::Boolean(true));
                 }
                 Op::FALSE => {
-                    self._push(Ok(WeaveType::Boolean(false)))?;
+                    self.stack.push(WeaveType::Boolean(false));
                 }
                 Op::NOT => {
                     // Everything is truthy in Weave, so we just need to negate
@@ -511,16 +572,20 @@ impl VM {
                     self._push(Ok(val))?;
                 }
                 Op::GREATER => {
-                    let [a, b] = self._poppop();
-                    self._push(Ok(WeaveType::Boolean(a > b)))?;
+                    // Optimize comparison: direct stack access
+                    let b = self.stack.pop().unwrap_or(WeaveType::None);
+                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    self.stack.push(WeaveType::Boolean(a > b));
                 }
                 Op::LESS => {
-                    let [a, b] = self._poppop();
-                    self._push(Ok(WeaveType::Boolean(a < b)))?;
+                    let b = self.stack.pop().unwrap_or(WeaveType::None);
+                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    self.stack.push(WeaveType::Boolean(a < b));
                 }
                 Op::EQUAL => {
-                    let [a, b] = self._poppop();
-                    self._push(Ok(WeaveType::Boolean(a == b)))?;
+                    let b = self.stack.pop().unwrap_or(WeaveType::None);
+                    let a = self.stack.pop().unwrap_or(WeaveType::None);
+                    self.stack.push(WeaveType::Boolean(a == b));
                 }
                 Op::PRINT => {
                     // Don't remove the top value from the stack - printing a value evaluates
@@ -545,8 +610,33 @@ impl VM {
                 }
             }
 
+            {
+                let elapsed = start_time.elapsed().as_nanos() as u64;
+                let opcode_name = format!("{:?}", op);
+                let entry = opcode_times.entry(opcode_name).or_insert((0, 0));
+                entry.0 += elapsed;
+                entry.1 += 1;
+            }
+
             self.debug(&format!("  - {:?}", self.stack));
             self.debug(&format!("  - {:?}", self.call_stack.constants()));
+        }
+
+        {
+            eprintln!("VM execution completed. Opcodes tracked: {}", opcode_times.len());
+            if !opcode_times.is_empty() {
+                eprintln!("Opcode Performance Profile:");
+                let mut sorted_opcodes: Vec<_> = opcode_times.iter().collect();
+                sorted_opcodes.sort_by(|a, b| b.1.0.cmp(&a.1.0)); // Sort by total time desc
+                for (opcode, (total_ns, count)) in sorted_opcodes.iter().take(10) {
+                    let avg_ns = *total_ns / *count;
+                    eprintln!("  {:15} {:8} calls, {:10} ns total, {:6} ns avg", 
+                             opcode, count, total_ns, avg_ns);
+                }
+                eprintln!();
+            } else {
+                eprintln!("No opcodes were executed!");
+            }
         }
 
         Ok(self.last_value.clone())
