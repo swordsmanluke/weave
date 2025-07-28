@@ -1,0 +1,64 @@
+# Benchmark suite to measure VM performance improvements
+
+# Test 1: Simple arithmetic loop (tests CONSTANT, ADD, GetLocal, SetLocal)
+fn arithmetic_test(n) {
+    sum = 0
+    i = 0
+    while i < n {
+        sum = sum + i + 1
+        i = i + 1
+    }
+    sum
+}
+
+# Test 2: Closure-heavy test (tests Call, RETURN, GetUpvalue, SetUpvalue)
+fn closure_test(n) {
+    counter = 0
+    increment = ^() {
+        counter = counter + 1
+    }
+    
+    i = 0
+    while i < n {
+        increment()
+        i = i + 1
+    }
+    counter
+}
+
+# Test 3: Mixed operations
+fn mixed_test(n) {
+    result = 0
+    
+    add_square = ^(x) {
+        result = result + (x * x)
+    }
+    
+    i = 0
+    while i < n {
+        if i < n / 2 {
+            add_square(i)
+        } else {
+            result = result - 1
+        }
+        i = i + 1
+    }
+    result
+}
+
+# Run benchmarks
+puts "Starting benchmark suite..."
+
+puts "Test 1: Arithmetic (10000 iterations)"
+result1 = arithmetic_test(10000)
+puts result1
+
+puts "Test 2: Closures (5000 iterations)"
+result2 = closure_test(5000)
+puts result2
+
+puts "Test 3: Mixed (5000 iterations)"
+result3 = mixed_test(5000)
+puts result3
+
+puts "Benchmark complete!"

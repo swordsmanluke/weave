@@ -315,17 +315,16 @@ impl VM {
     pub fn run(&mut self) -> VMResult {
         if self.call_stack.is_empty() { return Err(VMError::InvalidChunk); }
 
-        eprintln!("VM::run() called - Starting execution");
         self.debug("Executing...");
         log_debug!("Starting VM execution", function = "main");
 
+        #[cfg(feature = "vm-profiling")]
         let mut opcode_times: std::collections::HashMap<String, (u64, u64)> = std::collections::HashMap::new(); // (total_ns, count)
-
-        eprintln!("VM entering main execution loop");
         while !self.call_stack.is_at_end() {
             // until ip offset > chunk size
             let op = self.call_stack.next_op();
 
+            #[cfg(feature = "vm-profiling")]
             let start_time = std::time::Instant::now();
 
             // self.debug(&format!("EVAL({:?})", op));
@@ -345,15 +344,15 @@ impl VM {
                     
                     self.call_stack.pop();
                     if self.call_stack.is_empty() {
-                        eprintln!("VM returning early from RETURN with empty call stack");
-                        // Track the final opcode before early return
-                        let elapsed = start_time.elapsed().as_nanos() as u64;
-                        let opcode_name = format!("{:?}", op);
-                        let entry = opcode_times.entry(opcode_name).or_insert((0, 0));
-                        entry.0 += elapsed;
-                        entry.1 += 1;
-                        // Print profiling before early return
+                        #[cfg(feature = "vm-profiling")]
                         {
+                            // Track the final opcode before early return
+                            let elapsed = start_time.elapsed().as_nanos() as u64;
+                            let opcode_name = format!("{:?}", op);
+                            let entry = opcode_times.entry(opcode_name).or_insert((0, 0));
+                            entry.0 += elapsed;
+                            entry.1 += 1;
+                            // Print profiling before early return
                             eprintln!("VM execution completed (early return). Opcodes tracked: {}", opcode_times.len());
                             if !opcode_times.is_empty() {
                                 eprintln!("Opcode Performance Profile:");
@@ -365,8 +364,6 @@ impl VM {
                                              opcode, count, total_ns, avg_ns);
                                 }
                                 eprintln!();
-                            } else {
-                                eprintln!("No opcodes were executed!");
                             }
                         }
                         // Don't pop from empty stack
@@ -420,11 +417,14 @@ impl VM {
                     let arg_count= self.call_stack.next_byte() as usize;
                     let func_slot = (self.stack.len() - 1) - arg_count;
                     let func = self.stack.get(func_slot).unwrap();
+                    #[cfg(debug_assertions)]
                     self.debug(&format!("Taking {} @ {}", func, func_slot));
                     match func {
                         WeaveType::Closure(f) => {
-                            self.call_stack.push(f.clone(), func_slot);
-                            self.call(f.clone(), arg_count)?;
+                            // Minimize clones: store closure, then use it
+                            let closure = f.clone();
+                            self.call_stack.push(closure.clone(), func_slot);
+                            self.call(closure, arg_count)?;
                         }
                         WeaveType::NativeFn(f) => {
                             let args = if arg_count > 0 {
@@ -434,8 +434,6 @@ impl VM {
                             } else {
                                 vec![]
                             };
-                            // self.debug(&format!("Calling {} with {} arguments", f, arg_count));
-
                             (f.func)(args)?;
                         }
                         _ => {
@@ -610,6 +608,7 @@ impl VM {
                 }
             }
 
+            #[cfg(feature = "vm-profiling")]
             {
                 let elapsed = start_time.elapsed().as_nanos() as u64;
                 let opcode_name = format!("{:?}", op);
@@ -622,6 +621,7 @@ impl VM {
             self.debug(&format!("  - {:?}", self.call_stack.constants()));
         }
 
+        #[cfg(feature = "vm-profiling")]
         {
             eprintln!("VM execution completed. Opcodes tracked: {}", opcode_times.len());
             if !opcode_times.is_empty() {
