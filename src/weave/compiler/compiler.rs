@@ -399,14 +399,15 @@ impl Compiler {
         let loop_start = self.current_chunk().code.len() - 1;
         self.expression_statement(); // condition
         let exit_jump = self.emit_jump(Op::JumpIfFalse);
-        self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
+        // JumpIfFalse now pops the condition automatically
 
         self.consume(TokenType::LeftBrace, "Expected Block after condition");
         self.block();
+        self.emit_basic_opcode(Op::POP); // Pop any leftover expression results from loop body
         self.emit_loop(loop_start);
 
         self.patch_jump(exit_jump);
-        self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
+        // No need to pop - JumpIfFalse already handled it
     }
 
     fn if_statement(&mut self) {
@@ -414,7 +415,7 @@ impl Compiler {
 
         // Set up the jump to evaluate the condition
         let then_jump = self.emit_jump(Op::JumpIfFalse);
-        self.emit_basic_opcode(Op::POP);  // Pop the condition off the stack
+        // JumpIfFalse now pops the condition automatically
 
         // Compile the 'then' block
         self.consume(TokenType::LeftBrace, "Expected Block after condition");
@@ -424,8 +425,7 @@ impl Compiler {
         let else_jump = self.emit_jump(Op::Jump);
         self.patch_jump(then_jump);
 
-        // Another place we may need to pop the condition
-        self.emit_basic_opcode(Op::POP);
+        // No need to pop - JumpIfFalse already handled it
         if self.check(TokenType::Else) {
             // Compile the 'else' block
             self.consume(TokenType::LeftBrace, "Expected Block after 'else'");

@@ -12,7 +12,7 @@ pub struct VM {
     stack: Vec<NanBoxedValue>,
     globals: HashMap<String, NanBoxedValue>,
     last_value: NanBoxedValue,
-    open_upvalues: Vec<WeaveUpvalue>,
+    open_upvalues: HashMap<usize, WeaveUpvalue>, // Key: stack slot index, Value: upvalue
     
     // Arena allocators for memory management
     closure_arena: crate::weave::vm::types::ClosureArena,
@@ -171,7 +171,7 @@ impl VM {
             stack: Vec::with_capacity(255),
             globals: HashMap::new(),
             last_value: NanBoxedValue::null(),
-            open_upvalues: Vec::new(),
+            open_upvalues: HashMap::new(),
             closure_arena: crate::weave::vm::types::ClosureArena::with_capacity(64),
         };
 
@@ -245,18 +245,21 @@ impl VM {
         // So local at index N is at stack position: frame_slot + N
         let absolute_slot = current_frame_slot + uv.idx as usize;
         
-        // Check if we already have an open upvalue for this slot
-        let existing_upvalue = self.open_upvalues.iter()
-            .find(|uv| uv.is_open() && uv.get_stack_index() == absolute_slot)
-            .cloned();
-            
-        let upvalue = if let Some(existing) = existing_upvalue {
-            // Reuse existing upvalue
-            existing
+        // Check if we already have an open upvalue for this slot - O(1) HashMap lookup
+        let upvalue = if let Some(existing) = self.open_upvalues.get(&absolute_slot) {
+            // Reuse existing upvalue if it's still open
+            if existing.is_open() {
+                existing.clone()
+            } else {
+                // Replace closed upvalue with new open one
+                let new_upvalue = WeaveUpvalue::open(absolute_slot);
+                self.open_upvalues.insert(absolute_slot, new_upvalue.clone());
+                new_upvalue
+            }
         } else {
             // Create new upvalue and register it
             let new_upvalue = WeaveUpvalue::open(absolute_slot);
-            self.open_upvalues.push(new_upvalue.clone());
+            self.open_upvalues.insert(absolute_slot, new_upvalue.clone());
             new_upvalue
         };
         
@@ -281,25 +284,27 @@ impl VM {
 
     pub fn close_upvalues(&mut self, last_slot: usize) {
         // Close all open upvalues that reference stack slots at or above last_slot
-        let mut indices_to_close = Vec::new();
+        let mut slots_to_close = Vec::new();
         
-        
-        for (i, upvalue) in self.open_upvalues.iter().enumerate() {
+        // Find all upvalues that need to be closed
+        for (&slot_index, upvalue) in self.open_upvalues.iter() {
             if upvalue.is_open() && upvalue.get_stack_index() >= last_slot {
-                indices_to_close.push(i);
+                slots_to_close.push(slot_index);
             }
         }
         
-        for i in indices_to_close.iter().rev() {
-            // Close the upvalue - this updates the shared reference for all closures
-            // We need to clone to avoid borrowing issues
-            let mut upvalue_clone = self.open_upvalues[*i].clone();
-            upvalue_clone.close(self);
-            // The Rc<RefCell<>> ensures all references are updated
+        // Close the upvalues
+        for slot_index in slots_to_close {
+            if let Some(upvalue) = self.open_upvalues.get(&slot_index) {
+                // Close the upvalue - this updates the shared reference for all closures
+                let mut upvalue_clone = upvalue.clone();
+                upvalue_clone.close(self);
+                // The Rc<RefCell<>> ensures all references are updated
+                
+                // Remove the closed upvalue from the HashMap
+                self.open_upvalues.remove(&slot_index);
+            }
         }
-        
-        // Remove closed upvalues from the open_upvalues list
-        self.open_upvalues.retain(|uv| uv.is_open());
     }
 
     fn _read_constant(&mut self, idx: usize) -> NanBoxedValue {
@@ -315,9 +320,31 @@ impl VM {
 
         #[cfg(feature = "vm-profiling")]
         let mut opcode_times: std::collections::HashMap<String, (u64, u64)> = std::collections::HashMap::new(); // (total_ns, count)
+        
+        #[cfg(feature = "vm-profiling")]
+        let mut memory_samples: Vec<(usize, usize, usize, usize, usize, usize)> = Vec::new(); // (iteration, stack_len, upvalues_len, arena_len, globals_len, frames_len)
+        
+        #[cfg(feature = "vm-profiling")]
+        let mut iteration_count = 0;
         while !self.call_stack.is_at_end() {
             // until ip offset > chunk size
             let op = self.call_stack.next_op();
+
+            #[cfg(feature = "vm-profiling")]
+            {
+                iteration_count += 1;
+                // Sample memory usage every 100 iterations to avoid overhead
+                if iteration_count % 100 == 0 {
+                    memory_samples.push((
+                        iteration_count,
+                        self.stack.len(),
+                        self.open_upvalues.len(),
+                        self.closure_arena.len(),
+                        self.globals.len(),
+                        self.call_stack.frames.len(),
+                    ));
+                }
+            }
 
             #[cfg(feature = "vm-profiling")]
             let start_time = std::time::Instant::now();
@@ -362,13 +389,58 @@ impl VM {
                                 }
                                 eprintln!();
                             }
+                            
+                            // Memory usage analysis
+                            if !memory_samples.is_empty() {
+                                eprintln!("Memory Usage Analysis:");
+                                eprintln!("  Total samples: {}", memory_samples.len());
+                                
+                                if memory_samples.len() > 1 {
+                                    let first = &memory_samples[0];
+                                    let last = &memory_samples[memory_samples.len() - 1];
+                                    
+                                    eprintln!("  Growth from iteration {} to {}:", first.0, last.0);
+                                    eprintln!("    Stack:      {} -> {} (+{})", first.1, last.1, last.1 as i32 - first.1 as i32);
+                                    eprintln!("    Upvalues:   {} -> {} (+{})", first.2, last.2, last.2 as i32 - first.2 as i32);
+                                    eprintln!("    Arena:      {} -> {} (+{})", first.3, last.3, last.3 as i32 - first.3 as i32);
+                                    eprintln!("    Globals:    {} -> {} (+{})", first.4, last.4, last.4 as i32 - first.4 as i32);
+                                    eprintln!("    Frames:     {} -> {} (+{})", first.5, last.5, last.5 as i32 - first.5 as i32);
+                                    
+                                    // Find the component with the highest growth
+                                    let stack_growth = last.1 as i32 - first.1 as i32;
+                                    let upvalues_growth = last.2 as i32 - first.2 as i32;
+                                    let arena_growth = last.3 as i32 - first.3 as i32;
+                                    let globals_growth = last.4 as i32 - first.4 as i32;
+                                    let frames_growth = last.5 as i32 - first.5 as i32;
+                                    
+                                    let growths = [stack_growth, upvalues_growth, arena_growth, globals_growth, frames_growth];
+                                    let max_growth = *growths.iter().max().unwrap();
+                                    
+                                    if max_growth > 0 {
+                                        eprintln!("  Largest growth component: {}", 
+                                            if stack_growth == max_growth { "Stack" }
+                                            else if upvalues_growth == max_growth { "Upvalues" }
+                                            else if arena_growth == max_growth { "Arena" }
+                                            else if globals_growth == max_growth { "Globals" }
+                                            else { "Frames" }
+                                        );
+                                    }
+                                }
+                                eprintln!();
+                            }
                         }
                         // Don't pop from empty stack
                         return Ok(result);
                     }
                     
                     // self.debug(&format!("Returning: {} from depth {}", result, self.stack.len()));
-                    self.stack.push(result);
+                    // Place return value at the function's slot position (replacing the closure)
+                    if !self.call_stack.is_empty() {
+                        let current_frame_slot = self.current_frame().slot;
+                        self.stack[current_frame_slot] = result;
+                    } else {
+                        self.stack.push(result);
+                    }
                 },
                 Op::POP => { self.stack.pop(); },
                 Op::CONSTANT => {
@@ -513,14 +585,14 @@ impl VM {
                 }
                 Op::SetLocal => {
                     let slot = self.call_stack.next_slot();
-                    // Optimize: get NanBoxedValue directly from stack instead of converting
-                    let nan_boxed_value = self.stack.pop().unwrap_or(NanBoxedValue::null());
+                    // Peek the value instead of popping to keep it on stack for expression semantics
+                    let nan_boxed_value = *self.stack.last().unwrap_or(&NanBoxedValue::null());
                     // Ensure stack is large enough for the slot
                     while self.stack.len() <= slot {
                         self.stack.push(NanBoxedValue::null());
                     }
                     self.stack[slot] = nan_boxed_value;
-                    self.stack.push(nan_boxed_value); // Push the assigned value back for expression semantics
+                    // Value stays on stack since assignments are expressions in Weave
                 }
                 Op::GetLocal => {
                     let slot = self.call_stack.next_slot();
@@ -724,7 +796,7 @@ impl VM {
                 }
                 Op::JumpIfFalse => {
                     let jmp_offset = self.call_stack.next_u16();
-                    let value = *self.stack.last().unwrap_or(&NanBoxedValue::null());
+                    let value = self.stack.pop().unwrap_or(NanBoxedValue::null());
                     if !value.is_truthy() {
                         self.call_stack.jump(jmp_offset);
                     }
@@ -763,6 +835,45 @@ impl VM {
                 eprintln!();
             } else {
                 eprintln!("No opcodes were executed!");
+            }
+            
+            // Memory usage analysis
+            if !memory_samples.is_empty() {
+                eprintln!("Memory Usage Analysis:");
+                eprintln!("  Total samples: {}", memory_samples.len());
+                
+                if memory_samples.len() > 1 {
+                    let first = &memory_samples[0];
+                    let last = &memory_samples[memory_samples.len() - 1];
+                    
+                    eprintln!("  Growth from iteration {} to {}:", first.0, last.0);
+                    eprintln!("    Stack:      {} -> {} (+{})", first.1, last.1, last.1 as i32 - first.1 as i32);
+                    eprintln!("    Upvalues:   {} -> {} (+{})", first.2, last.2, last.2 as i32 - first.2 as i32);
+                    eprintln!("    Arena:      {} -> {} (+{})", first.3, last.3, last.3 as i32 - first.3 as i32);
+                    eprintln!("    Globals:    {} -> {} (+{})", first.4, last.4, last.4 as i32 - first.4 as i32);
+                    eprintln!("    Frames:     {} -> {} (+{})", first.5, last.5, last.5 as i32 - first.5 as i32);
+                    
+                    // Find the component with the highest growth
+                    let stack_growth = last.1 as i32 - first.1 as i32;
+                    let upvalues_growth = last.2 as i32 - first.2 as i32;
+                    let arena_growth = last.3 as i32 - first.3 as i32;
+                    let globals_growth = last.4 as i32 - first.4 as i32;
+                    let frames_growth = last.5 as i32 - first.5 as i32;
+                    
+                    let growths = [stack_growth, upvalues_growth, arena_growth, globals_growth, frames_growth];
+                    let max_growth = *growths.iter().max().unwrap();
+                    
+                    if max_growth > 0 {
+                        eprintln!("  Largest growth component: {}", 
+                            if stack_growth == max_growth { "Stack" }
+                            else if upvalues_growth == max_growth { "Upvalues" }
+                            else if arena_growth == max_growth { "Arena" }
+                            else if globals_growth == max_growth { "Globals" }
+                            else { "Frames" }
+                        );
+                    }
+                }
+                eprintln!();
             }
         }
 
