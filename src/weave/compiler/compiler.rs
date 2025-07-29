@@ -320,6 +320,10 @@ impl Compiler {
         
         self.consume(TokenType::LeftBrace, "Expected '{' before function body");
         self.block();
+        
+        // Add implicit RETURN for function end (like explicit return statements)
+        self.emit_basic_opcode(Op::RETURN);
+        
         log_info!("Function compilation complete", function_name = self.function.name.as_str());
         let _ = self.function.chunk.disassemble(self.function.name.as_str());
     }
@@ -333,6 +337,10 @@ impl Compiler {
         
         self.consume(TokenType::LeftBrace, "Expected '{' before lambda body");
         self.block();
+        
+        // Add implicit RETURN for lambda end (like explicit return statements)
+        self.emit_basic_opcode(Op::RETURN);
+        
         log_info!("Lambda compilation complete");
         let _ = self.function.chunk.disassemble("<lambda>");
     }

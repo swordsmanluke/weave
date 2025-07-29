@@ -398,7 +398,7 @@
         "description": "Replace the current 32-byte WeaveType enum with 64-bit NaN-boxing to store numbers, booleans, and null directly in a single 64-bit value, eliminating boxing overhead and reducing memory traffic by 4x.",
         "details": "Implement NaN-boxing technique using IEEE 754 double-precision floating-point representation to encode multiple value types in a single 64-bit value. Design: Use quiet NaN space (0x7FF8000000000000 to 0x7FFFFFFFFFFFFFFF) for non-numeric values. Encoding scheme: 1) Numbers: Store directly as f64 values (canonical NaN becomes 0x7FF8000000000001). 2) Boolean true: 0x7FF8000000000003, false: 0x7FF8000000000002. 3) Null: 0x7FF8000000000004. 4) Pointers (strings, functions, closures): Use 48-bit payload space for pointer storage with tag bits for type discrimination. Implementation steps: 1) Create new NanBoxedValue type wrapping u64 with methods for encoding/decoding each type. 2) Replace WeaveType enum with NanBoxedValue throughout VM stack, locals, and upvalues. 3) Update all VM opcodes to work with NaN-boxed values directly. 4) Implement fast-path arithmetic operations that operate on raw f64 values without unpacking. 5) Add debug assertions to verify pointer alignment and tag validity. 6) Update garbage collection to properly trace through NaN-boxed pointers. Critical optimizations: Use inline assembly or intrinsics for fast type checking (test high 16 bits), implement branchless arithmetic operations, ensure stack operations use memcpy for bulk moves.",
         "testStrategy": "Comprehensive testing strategy: 1) Unit tests for NanBoxedValue encoding/decoding of all value types, verifying bit patterns match specification. 2) Property-based tests ensuring round-trip encoding/decoding preserves values exactly. 3) Performance benchmarks comparing current WeaveType operations vs NaN-boxed operations, targeting 5-10x improvement for numeric operations. 4) Stress tests with edge cases: special float values (infinity, -0.0, denormals), maximum pointer values, rapid type transitions. 5) Integration tests running all existing Weave test programs to ensure semantic preservation. 6) Memory layout tests verifying 4x reduction in stack memory usage. 7) Garbage collection tests ensuring pointer tracing works correctly through NaN-boxed values. 8) Cross-platform tests verifying consistent behavior on different architectures (x86_64, ARM64).",
-        "status": "pending",
+        "status": "done",
         "dependencies": [],
         "priority": "high",
         "subtasks": [
@@ -441,7 +441,7 @@
               "18.3"
             ],
             "details": "Implement pointer encoding/decoding for heap-allocated types (strings, functions, closures): Design pointer tagging scheme using available bits in 48-bit payload space, ensure pointer values maintain proper alignment for platform requirements. Update garbage collector to extract and trace pointers from NaN-boxed values, implement fast pointer extraction using bit masking. Update string interning, function allocation, and closure creation to return NaN-boxed pointers. Add safety checks in debug builds to verify pointer validity. Implement efficient batch pointer extraction for GC marking phase.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "GC stress tests with mixed value types, pointer extraction correctness tests, memory leak detection tests, alignment verification tests"
           },
           {
@@ -452,7 +452,7 @@
               "18.4"
             ],
             "details": "Implement performance-critical optimizations: Add inline assembly or intrinsics for ultra-fast type checking (test high 16 bits), optimize hot paths in arithmetic operations using SIMD where applicable. Implement bulk stack operations using memcpy for value moves. Add compiler hints for branch prediction in type dispatch. Create comprehensive benchmark suite measuring: memory bandwidth reduction (target 4x improvement), arithmetic operation throughput, type checking overhead, overall VM execution speed on real workloads (fibonacci, mandelbrot, closure-heavy code). Profile and optimize cache usage patterns. Document performance characteristics and tuning guidelines.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Micro-benchmarks for individual operations, macro-benchmarks on real programs, memory bandwidth measurements, cache miss analysis, regression tests ensuring no performance degradation"
           },
           {
@@ -460,7 +460,7 @@
             "title": "Complete WeaveType Elimination",
             "description": "Completely eliminate WeaveType throughout the codebase, replacing with NanBoxedValue to eliminate all type conversion overhead",
             "details": "Replace WeaveType completely with NanBoxedValue in:\n1. Chunk constants: Vec<WeaveType> → Vec<NanBoxedValue>\n2. Native function interface: fn(&[WeaveType]) → fn(&[NanBoxedValue])\n3. All operator implementations (Add, Sub, Mul, Display) - move from WeaveType to NanBoxedValue\n4. Remove ALL conversion functions: weave_type_to_nan_boxed() and nan_boxed_to_weave_type()\n5. Update compiler to emit NanBoxedValue constants directly\n\nThis eliminates the dual-type system overhead that causes 6-8 conversions per function call, achieving the target 20-50x performance improvement.",
-            "status": "in-progress",
+            "status": "done",
             "dependencies": [
               "18.3"
             ],
@@ -471,7 +471,7 @@
             "title": "Fix Function Call Performance Scaling Issues",
             "description": "Address O(n²) scaling behavior and optimize function call hot paths to achieve 10,000+ calls/second",
             "details": "Current Performance Issue: \n- 2500 iterations = 7 seconds (357 calls/second)\n- 5000 iterations = 28 seconds (178 calls/second) \n- Shows O(n²) scaling instead of linear O(n)\n\nKey Optimizations:\n1. Profile and fix open_upvalues data structure (suspected O(n²) behavior)\n2. Optimize stack growth patterns to reduce Vec reallocations\n3. Streamline Op::Call and Op::RETURN protocols after WeaveType elimination\n4. Remove bounds checking in release builds for hot paths\n5. Implement CallFrame pooling optimizations\n6. Pre-allocate larger stack chunks\n\nTarget: Linear O(n) scaling with 10,000+ function calls/second performance",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "18.6"
             ],
@@ -618,7 +618,7 @@
     ],
     "metadata": {
       "created": "2025-07-24T17:50:08.486Z",
-      "updated": "2025-07-29T03:43:45.289Z",
+      "updated": "2025-07-29T03:59:25.645Z",
       "description": "Tasks for master context"
     }
   }

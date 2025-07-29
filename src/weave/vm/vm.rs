@@ -139,7 +139,7 @@ impl CallStack {
     }
 
     pub fn is_at_end(&self) -> bool {
-        self.frames.iter().all(|f| f.ip.is_at_end())
+        self.frames.is_empty() || self.frames.last().unwrap().ip.is_at_end()
     }
     
     pub fn reset(&mut self) {
@@ -435,12 +435,8 @@ impl VM {
                     
                     // self.debug(&format!("Returning: {} from depth {}", result, self.stack.len()));
                     // Place return value at the function's slot position (replacing the closure)
-                    if !self.call_stack.is_empty() {
-                        let current_frame_slot = self.current_frame().slot;
-                        self.stack[current_frame_slot] = result;
-                    } else {
-                        self.stack.push(result);
-                    }
+                    // After truncation, the stack ends at current_frame_slot, so push the result
+                    self.stack.push(result);
                 },
                 Op::POP => { self.stack.pop(); },
                 Op::CONSTANT => {
