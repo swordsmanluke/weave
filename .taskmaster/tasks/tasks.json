@@ -519,11 +519,106 @@
         ],
         "priority": "low",
         "subtasks": []
+      },
+      {
+        "id": 22,
+        "title": "Implement Symbols support",
+        "description": "Add :symbol syntax parsing, Symbol token type, and WeaveSymbol type in VM with symbol literal recognition and evaluation",
+        "details": "Implement comprehensive Symbol support for the Weave language: 1) Add Symbol token type to scanner.rs - recognize :symbol syntax in lexical analysis, handle symbol identifiers starting with colon followed by alphanumeric characters and underscores. 2) Extend parser.rs to handle symbol literals in primary expressions, add symbol parsing rules to expression grammar. 3) Create WeaveSymbol type in types/ directory - implement as interned string for efficient comparison and memory usage, use global symbol table for deduplication. 4) Add Symbol variant to WeaveType enum or NaN-boxed representation if Task 18 is complete. 5) Implement OP_SYMBOL bytecode instruction for symbol literal compilation. 6) Add symbol evaluation logic to VM - handle symbol creation, comparison, and printing. 7) Implement Display trait for symbols showing :symbol_name format. 8) Add symbol equality comparison - symbols with same name should be equal. 9) Integrate with existing value system ensuring symbols work with all operations appropriately.",
+        "testStrategy": "Create comprehensive test suite for symbol functionality: 1) Scanner tests verifying :symbol tokenization, edge cases like :123invalid, :_, and Unicode symbols. 2) Parser tests for symbol literals in expressions, symbol assignment and comparison. 3) VM execution tests for symbol creation, equality comparison (:foo == :foo should be true, :foo == :bar should be false). 4) Integration tests with existing language features - symbols in function parameters, return values, and data structures. 5) REPL tests ensuring symbols display correctly and maintain identity across interactions. 6) Performance tests comparing symbol interning efficiency. 7) Memory tests verifying symbol deduplication in global symbol table.",
+        "status": "pending",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 23,
+        "title": "Implement Container data structure",
+        "description": "Add support for list syntax [1, 2, 3] and key-value pair syntax [a: 1, b: 2] with indexing operations and WeaveContainer type implementation.",
+        "details": "Implement comprehensive Container support for the Weave language: 1) Add LIST_START ([), LIST_END (]), COLON (:) tokens to scanner.rs for container syntax recognition. 2) Extend parser.rs to handle list literals in primary expressions - parse [1, 2, 3] as list expressions and [key: value, key2: value2] as map expressions, add container parsing rules to expression grammar with proper precedence. 3) Create WeaveContainer type in types/ directory implementing both list and map functionality - use Vec<WeaveValue> for lists and HashMap<String, WeaveValue> for maps, implement efficient indexing operations. 4) Add container opcodes to bytecode: MAKE_LIST, MAKE_MAP, INDEX_GET, INDEX_SET for runtime operations. 5) Implement container operations in VM - handle list/map creation, indexing with bounds checking, support both numeric indices for lists and string keys for maps. 6) Add container methods like length(), push(), keys() as built-in functions. 7) Ensure containers work with existing language features like assignment, function parameters, and closures.",
+        "testStrategy": "Create comprehensive test suite for container functionality: 1) Scanner tests verifying container token recognition for [, ], : symbols and complex nested structures. 2) Parser tests for list literals [1, 2, 3], map literals [a: 1, b: 2], nested containers [[1, 2], [3, 4]], and mixed types. 3) VM execution tests for container creation, indexing operations list[0], map[\"key\"], assignment operations, bounds checking errors. 4) Integration tests with functions accepting containers as parameters, containers in closures, container iteration. 5) Performance tests for large containers and deep nesting scenarios.",
+        "status": "pending",
+        "dependencies": [
+          18
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 24,
+        "title": "Implement Function Pipeline Operators",
+        "description": "Add |> pipe, *> map, and &> reduce operators with parsing, compilation, and VM execution for data transformation pipelines.",
+        "details": "Implement comprehensive pipeline operator support for the Weave language: 1) Add PIPE (|>), MAP (*>), and REDUCE (&>) tokens to scanner.rs with proper operator recognition and precedence. 2) Extend parser.rs to handle pipeline expressions - parse expressions like 'data |> transform |> filter' as left-associative binary operations, add pipeline parsing rules with appropriate precedence levels (pipe lower than arithmetic, map/reduce similar to pipe). 3) Add new opcodes (PIPE, MAP, REDUCE) to vm.rs instruction set. 4) Implement pipeline execution in VM - PIPE passes left operand as first argument to right operand function, MAP applies function to each element of container, REDUCE applies binary function across container elements with accumulator. 5) Add pipeline operator support to compiler.rs - emit appropriate opcodes for pipeline expressions, handle function call transformation for pipe operations. 6) Ensure pipeline operators work with existing function types, closures, and native functions. 7) Add error handling for invalid pipeline operations (non-function right operands, type mismatches).",
+        "testStrategy": "Create comprehensive test suite for pipeline operators: 1) Scanner tests verifying |>, *>, &> token recognition and precedence handling. 2) Parser tests for simple pipelines (a |> f), chained pipelines (a |> f |> g), mixed operator expressions, and precedence interactions. 3) VM execution tests for pipe operator with functions and closures, map operator with containers and transformation functions, reduce operator with binary functions and initial values. 4) Integration tests combining pipeline operators with existing language features like closures, native functions, and container operations. 5) Error handling tests for invalid pipeline usage (non-function operands, type errors). 6) Performance tests for pipeline operation efficiency compared to nested function calls.",
+        "status": "pending",
+        "dependencies": [
+          23,
+          18
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 25,
+        "title": "Implement File I/O System",
+        "description": "Add open(), read(), write() builtin functions with support for :csv, :json, :yaml, :toml, :ini file formats and custom parser functions",
+        "details": "Implement comprehensive file I/O system for the Weave language: 1) Add native file operations - create open(filename, mode) function returning file handle, read(handle) and read(filename) for file content reading, write(handle, data) and write(filename, data) for file writing, close(handle) for resource cleanup. 2) Implement format-specific parsing with symbol-based format specifiers - add :csv parser using comma-separated value parsing with configurable delimiters, :json parser with proper JSON syntax validation and nested object/array support, :yaml parser handling indentation and multi-document files, :toml parser for configuration files with section support, :ini parser with section/key-value pair handling. 3) Create WeaveFile type in types/ directory - implement file handle management with proper resource cleanup using RAII patterns, add file metadata access (size, permissions, timestamps), support both text and binary modes. 4) Add file system operations - create directory listing, file existence checking, path manipulation functions. 5) Implement streaming for large files - add chunked reading to prevent memory exhaustion, support line-by-line iteration for text processing. 6) Add error handling for file operations with descriptive error messages for common scenarios (file not found, permission denied, disk full). 7) Integrate with container system for structured data - ensure parsed formats return appropriate WeaveContainer structures for lists and maps.",
+        "testStrategy": "Create comprehensive test suite for file I/O functionality: 1) Basic file operations tests - verify open/read/write/close cycle with various file modes, test file handle resource management and cleanup. 2) Format parser tests for each supported format - create sample CSV, JSON, YAML, TOML, and INI files, verify correct parsing into WeaveContainer structures, test edge cases like empty files, malformed syntax, and nested structures. 3) Error handling tests - verify appropriate error messages for file not found, permission errors, and invalid format syntax. 4) Integration tests with container system - ensure file I/O works seamlessly with list and map operations, test round-trip serialization (write then read) preserves data integrity. 5) Performance tests for large file handling - verify streaming works correctly for files larger than available memory, test chunked reading performance. 6) File system operation tests - verify directory listing, file existence checking, and path manipulation functions work across different operating systems.",
+        "status": "pending",
+        "dependencies": [
+          23,
+          22,
+          18
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 26,
+        "title": "Implement Shell Integration",
+        "description": "Add backtick shell execution syntax, shell result containers with :success and :output keys, and bash pipe support for executing system commands from within Weave.",
+        "details": "Implement comprehensive shell integration for the Weave language: 1) Add BACKTICK token to scanner.rs for shell command recognition - handle backtick-delimited strings like `ls -la` as shell execution syntax, support escaped backticks and multi-line commands. 2) Extend parser.rs to parse backtick expressions as primary expressions - treat backtick content as shell command string, add shell execution parsing rules to expression grammar. 3) Create WeaveShellResult container type using WeaveContainer infrastructure - implement shell result as container with :success boolean key and :output string key, use symbol-based key access for result inspection. 4) Add execute_shell native function to VM - use std::process::Command for cross-platform shell execution, capture stdout/stderr streams, handle command exit codes and convert to success boolean. 5) Implement bash pipe support within shell commands - allow complex bash pipelines like `cat file.txt | grep pattern | wc -l` to be executed as single shell commands. 6) Add proper error handling for shell execution failures - handle command not found, permission errors, and timeout scenarios with appropriate Weave error types. 7) Integrate with existing container indexing system - enable result[:success] and result[:output] access patterns using established container access mechanisms.",
+        "testStrategy": "Create comprehensive test suite for shell integration: 1) Scanner tests verifying backtick tokenization with various command strings, escaped backticks, and multi-line commands. 2) Parser tests for backtick expressions in various contexts, shell command assignment to variables, and integration with other expressions. 3) VM execution tests for basic shell commands (`echo hello`), command success/failure detection, stdout capture, and stderr handling. 4) Container integration tests verifying shell result access via result[:success] and result[:output] patterns. 5) Bash pipe tests for complex command chains (`ls | grep txt | wc -l`) and pipe error propagation. 6) Cross-platform compatibility tests for Windows cmd.exe vs Unix shell differences. 7) Error handling tests for invalid commands, permission failures, and timeout scenarios. 8) Integration tests combining shell execution with container operations and symbol-based access patterns.",
+        "status": "pending",
+        "dependencies": [
+          23,
+          22,
+          18
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 27,
+        "title": "Implement Advanced Function Features",
+        "description": "Add support for default parameter values, named parameter calls, and variadic parameters to enhance function definition and invocation capabilities in Weave.",
+        "details": "Implement comprehensive advanced function features for the Weave language: 1) Default parameter values - extend function definition syntax to support 'fn sum(acc: 0, values)' with default value assignment, modify parser.rs to handle parameter defaults in function declarations, update compiler.rs to generate bytecode for default parameter initialization, implement parameter binding logic in VM that uses defaults when arguments are not provided. 2) Named parameter calls - add support for function calls like 'div(b: 3, a: 2)' with explicit parameter naming, extend call expression parsing to handle named arguments, implement parameter matching by name rather than position, add validation to ensure all required parameters are provided. 3) Variadic parameters - implement '*args' syntax for functions accepting variable argument counts, extend function parameter parsing to recognize variadic syntax, create argument collection mechanism that bundles extra arguments into a container, ensure variadic parameters work with both positional and named calling conventions. 4) Integration considerations - ensure compatibility with existing closure capture mechanisms, update function type representation to include parameter metadata, maintain backward compatibility with existing positional-only function calls.",
+        "testStrategy": "Create comprehensive test suite for advanced function features: 1) Default parameter tests - verify functions with mixed default/required parameters, test default value evaluation timing, validate parameter binding with partial argument lists. 2) Named parameter tests - test named-only calls, mixed positional/named calls, parameter reordering, error handling for unknown parameter names. 3) Variadic parameter tests - verify collection of extra arguments, interaction with default parameters, edge cases with zero variadic arguments. 4) Integration tests - test advanced features with closures, nested function calls, and pipeline operators. 5) Error handling tests - validate proper error messages for parameter mismatches, type errors in defaults, and invalid calling patterns.",
+        "status": "pending",
+        "dependencies": [
+          18,
+          23
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 28,
+        "title": "Implement Built-in Functions and String Features",
+        "description": "Add print() function to replace puts(), string interpolation with {variable} syntax, and string concatenation with + operator for enhanced string manipulation capabilities.",
+        "details": "Implement comprehensive built-in functions and string features for the Weave language: 1) Replace puts() with print() function - update native function registry in vm.rs to register print() instead of puts(), maintain same functionality but use standard naming convention, update all existing code references and documentation. 2) Implement string interpolation with {variable} syntax - extend scanner.rs to recognize interpolated strings like \"Hello {name}!\", add STRING_INTERPOLATED token type for strings containing variable references, modify parser.rs to parse interpolated strings as expressions that concatenate string literals with variable values, add INTERPOLATE opcode to vm.rs for runtime string interpolation. 3) Add string concatenation with + operator - extend existing arithmetic operations in parser.rs to handle string + string operations, modify compiler.rs to generate STRING_CONCAT opcode when + operator is used with string operands, implement string concatenation logic in vm.rs that handles WeaveString + WeaveString operations and creates new WeaveString results. 4) Update string handling infrastructure - ensure WeaveString type supports efficient concatenation operations, implement proper memory management for concatenated strings, add support for mixed-type concatenation (string + number becomes string). 5) Maintain backward compatibility during transition from puts() to print().",
+        "testStrategy": "Create comprehensive test suite for built-in functions and string features: 1) print() function tests - verify print() outputs correctly to stdout, test with various data types (numbers, strings, booleans), compare behavior with previous puts() implementation. 2) String interpolation tests - test simple variable interpolation \"Hello {name}\", complex expressions \"Result: {x + y}\", nested interpolations, edge cases with missing variables and type conversions. 3) String concatenation tests - verify \"hello\" + \" world\" produces \"hello world\", test string + number concatenation, test chained concatenations \"a\" + \"b\" + \"c\", performance tests for large string concatenations. 4) Integration tests combining all features - interpolated strings with concatenated results, print() with interpolated strings, error handling for invalid interpolation syntax. 5) Regression tests ensuring existing string functionality remains intact.",
+        "status": "pending",
+        "dependencies": [
+          18
+        ],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-07-24T17:50:08.486Z",
-      "updated": "2025-07-28T22:44:21.671Z",
+      "updated": "2025-07-29T03:43:45.289Z",
       "description": "Tasks for master context"
     }
   }
