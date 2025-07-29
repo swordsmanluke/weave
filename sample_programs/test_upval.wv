@@ -2,9 +2,10 @@ fn outer() {
   a = 1
   b = 2
   fn inner() {
-    puts(a)
-    puts(b)
+    a + b
   }
   inner()
 }
+
 outer()
+

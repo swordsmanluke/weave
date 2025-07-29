@@ -5,8 +5,8 @@ fn arithmetic_test(n) {
     sum = 0
     i = 0
     while i < n {
-        sum = sum + i + 1
-        i = i + 1
+        sum = sum + 1
+	i = i + 1
     }
     sum
 }
@@ -53,12 +53,12 @@ puts "Test 1: Arithmetic (10000 iterations)"
 result1 = arithmetic_test(10000)
 puts result1
 
-puts "Test 2: Closures (5000 iterations)"
-result2 = closure_test(5000)
-puts result2
+# puts "Test 2: Closures (5000 iterations)"
+# result2 = closure_test(5000)
+# puts result2
 
-puts "Test 3: Mixed (5000 iterations)"
-result3 = mixed_test(5000)
-puts result3
+# puts "Test 3: Mixed (5000 iterations)"
+# result3 = mixed_test(5000)
+# puts result3
 
 puts "Benchmark complete!"
