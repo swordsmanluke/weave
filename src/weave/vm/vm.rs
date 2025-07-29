@@ -112,7 +112,9 @@ impl CallStack {
     
     pub fn next_slot(&mut self) -> usize {
         let relative_slot = self.next_byte() as usize;
-        self.cur_frame().i(relative_slot)
+        let frame_slot = self.cur_frame().slot;
+        let absolute_slot = self.cur_frame().i(relative_slot);
+        absolute_slot
     }
     
     pub fn jump(&mut self, offset: u16) {
@@ -237,7 +239,7 @@ impl VM {
         // uv.idx is the local variable index in the current frame (where the closure is being created)
         // We need to convert it to an absolute stack position
         
-        // For local upvalues, they come from the current frame (not parent)
+        // For local upvalues, they come from the current frame where local variables exist
         let current_frame_idx = self.call_stack.frames.len() - 1;
         let current_frame = &self.call_stack.frames[current_frame_idx];
         let current_frame_slot = current_frame.slot;
@@ -362,7 +364,11 @@ impl VM {
                     self.close_upvalues(current_frame_slot);
                     
                     // Now we can clean up the stack - remove everything from the frame slot onwards
+                    let old_len = self.stack.len();
                     self.stack.truncate(current_frame_slot);
+                    if old_len != current_frame_slot {
+                        log_debug!("STACK TRUNCATE", old_len = old_len, new_len = current_frame_slot, opcode = "RETURN", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
+                    }
                     
                     // TODO: Implement proper closure cleanup to prevent memory leaks
                     
@@ -433,12 +439,18 @@ impl VM {
                         return Ok(result);
                     }
                     
-                    // self.debug(&format!("Returning: {} from depth {}", result, self.stack.len()));
-                    // Place return value at the function's slot position (replacing the closure)
-                    // After truncation, the stack ends at current_frame_slot, so push the result
+                    // Place return value by pushing it onto the truncated stack
+                    // The stack was truncated to function_slot, so pushing the result
+                    // places it where the function call was (replacing the closure)
                     self.stack.push(result);
+                    log_debug!("STACK PUSH", value = format!("{:?}", result).as_str(), stack_len = self.stack.len(), opcode = "RETURN", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
                 },
-                Op::POP => { self.stack.pop(); },
+                Op::POP => { 
+                    if let Some(value) = self.stack.pop() {
+                        self.last_value = value;
+                        log_debug!("STACK POP", value = format!("{:?}", value).as_str(), stack_len = self.stack.len(), opcode = "POP", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
+                    }
+                },
                 Op::CONSTANT => {
                     let idx = self.call_stack.next_u16() as usize;
                     #[cfg(debug_assertions)]
@@ -446,6 +458,7 @@ impl VM {
                     // Push constant directly - NanBoxedValue is Copy, no clone needed!
                     let constant = self.call_stack.get_constant(idx);
                     self.stack.push(constant);
+                    log_debug!("STACK PUSH", value = format!("{:?}", constant).as_str(), stack_len = self.stack.len(), opcode = "CONSTANT", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
                 }
                 Op::Closure => {
                     let idx = self.call_stack.next_u16() as usize;
@@ -586,21 +599,23 @@ impl VM {
                     // Ensure stack is large enough for the slot
                     while self.stack.len() <= slot {
                         self.stack.push(NanBoxedValue::null());
+                        log_debug!("STACK PUSH", value = "Null", stack_len = self.stack.len(), opcode = "SetLocal(grow)", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
                     }
                     self.stack[slot] = nan_boxed_value;
+                    log_debug!("STACK STORE", value = format!("{:?}", nan_boxed_value).as_str(), slot = slot, stack_len = self.stack.len(), opcode = "SetLocal", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
                     // Value stays on stack since assignments are expressions in Weave
                 }
                 Op::GetLocal => {
                     let slot = self.call_stack.next_slot();
-                    if slot >= self.stack.len() {
-                        return Err(VMError::RuntimeError { 
-                            line: self.call_stack.line_number_at(-1), 
-                            msg: format!("Stack index out of bounds: slot={}, stack_len={}", slot, self.stack.len()) 
-                        });
+                    // Ensure stack is large enough for the slot
+                    while self.stack.len() <= slot {
+                        self.stack.push(NanBoxedValue::null());
+                        log_debug!("STACK PUSH", value = "Null", stack_len = self.stack.len(), opcode = "GetLocal(grow)", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
                     }
                     // Use reference to avoid cloning during push
                     let value = self.stack[slot];
                     self.stack.push(value);
+                    log_debug!("STACK PUSH", value = format!("{:?}", value).as_str(), stack_len = self.stack.len(), opcode = "GetLocal", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
                 }
                 Op::GetUpvalue => {
                     let slot = self.call_stack.next_byte() as usize;
@@ -796,6 +811,7 @@ impl VM {
                     if !value.is_truthy() {
                         self.call_stack.jump(jmp_offset);
                     }
+                    // Value is already popped - no need to do anything else
                 }
                 Op::Loop => {
                     let jmp_offset = self.call_stack.next_u16();
@@ -873,7 +889,8 @@ impl VM {
             }
         }
 
-        Ok(self.last_value)
+        // Return the top value on the stack as the result
+        Ok(self.stack.last().copied().unwrap_or(NanBoxedValue::null()))
     }
 
     fn debug(&self, msg: &str) {
@@ -1142,6 +1159,7 @@ mod tests {
         let mut vm = VM::new();
         let res = vm.interpret(code);
         assert!(res.is_ok(), "Failed to interpret: {:?}", res.unwrap_err());
+        eprintln!("Test result: {:?}", res);
         assert_eq!(res.unwrap(), NanBoxedValue::from(1.0));
     }
 

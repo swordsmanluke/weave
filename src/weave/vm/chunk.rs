@@ -72,6 +72,14 @@ impl Chunk {
     }
 
     pub fn get_constant(&self, idx: usize) -> NanBoxedValue {
+        if idx >= self.constants.len() {
+            eprintln!("ERROR: Constant index {} out of bounds for constants table with {} entries", idx, self.constants.len());
+            eprintln!("Constants in table:");
+            for (i, constant) in self.constants.iter().enumerate() {
+                eprintln!("  [{}]: {:?}", i, constant);
+            }
+            panic!("Constant index {} out of bounds: constants table has {} entries. This indicates a compiler bug where bytecode references an invalid constant index.", idx, self.constants.len());
+        }
         self.constants[idx] // Copy, not reference - NanBoxedValue is Copy
     }
 

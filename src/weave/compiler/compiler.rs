@@ -76,10 +76,13 @@ impl Compiler {
         self.emit_basic_opcode(Op::RETURN);
 
         if self.had_error {
-            self.current_chunk().disassemble("Chunk Dump");
+            let _ = self.current_chunk().disassemble("Chunk Dump");
             self.report_err("Compilation error- see above");
             return Err("Compilation error".to_string());
         }
+        
+        // Disassemble for debugging
+        let _ = self.current_chunk().disassemble("=== Script ===");
 
         Ok(self.function.clone())
     }
