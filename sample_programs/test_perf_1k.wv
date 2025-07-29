@@ -2,7 +2,7 @@
 fn test_smaller_loop() {
     # Smaller loop - 1000 iterations
     i = 0
-    while i < 5000 {
+    while i < 1000 {
         i = i + 1
     }
     

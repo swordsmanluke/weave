@@ -31,6 +31,7 @@ const FUNCTION_TAG: u64 = 0x0002000000000000;
 const CLOSURE_TAG: u64 = 0x0003000000000000;
 const NATIVE_FN_TAG: u64 = 0x0004000000000000;
 const UPVALUE_TAG: u64 = 0x0005000000000000;
+const CLOSURE_HANDLE_TAG: u64 = 0x0006000000000000;
 
 impl NanBoxedValue {
     /// Creates a new NanBoxedValue from a number
@@ -63,6 +64,16 @@ impl NanBoxedValue {
         Self::pointer(string_ptr, PointerTag::String)
     }
     
+    /// Creates a new NanBoxedValue from a closure handle (arena-allocated)
+    #[inline]
+    pub fn closure_handle(handle: crate::weave::vm::types::ClosureHandle) -> Self {
+        let packed = handle.to_u64();
+        // Pack the handle data directly into the NaN-boxed value's payload
+        Self { 
+            bits: QUIET_NAN_MASK | CLOSURE_HANDLE_TAG | (packed & 0x0000FFFFFFFFFFFF)
+        }
+    }
+    
     /// Creates a new NanBoxedValue from a raw pointer with type tag
     #[inline]
     pub fn pointer(ptr: *const (), tag: PointerTag) -> Self {
@@ -77,6 +88,7 @@ impl NanBoxedValue {
             PointerTag::Closure => CLOSURE_TAG,
             PointerTag::NativeFn => NATIVE_FN_TAG,
             PointerTag::Upvalue => UPVALUE_TAG,
+            PointerTag::ClosureHandle => CLOSURE_HANDLE_TAG,
         };
         
         Self { 
@@ -129,6 +141,17 @@ impl NanBoxedValue {
         }
     }
     
+    /// Fast type checking - returns true if this value represents a closure handle
+    #[inline]
+    pub fn is_closure_handle(self) -> bool {
+        if self.is_pointer() {
+            let (_, tag) = self.as_pointer();
+            tag == PointerTag::ClosureHandle
+        } else {
+            false
+        }
+    }
+    
     /// Extracts the number value (assumes is_number() == true)
     #[inline]
     pub fn as_number(self) -> f64 {
@@ -152,6 +175,15 @@ impl NanBoxedValue {
         unsafe { &*(ptr as *const WeaveString) }.as_str()
     }
     
+    /// Extracts the closure handle (assumes is_closure_handle() == true)
+    #[inline]
+    pub fn as_closure_handle(self) -> crate::weave::vm::types::ClosureHandle {
+        debug_assert!(self.is_closure_handle(), "Value is not a closure handle");
+        // Extract the packed handle data from the payload
+        let handle_data = self.bits & 0x0000FFFFFFFFFFFF;
+        crate::weave::vm::types::ClosureHandle::from_u64(handle_data)
+    }
+    
     /// Extracts the pointer value and tag (assumes is_pointer() == true)
     #[inline]
     pub fn as_pointer(self) -> (*const (), PointerTag) {
@@ -166,6 +198,7 @@ impl NanBoxedValue {
             CLOSURE_TAG => PointerTag::Closure,
             NATIVE_FN_TAG => PointerTag::NativeFn,
             UPVALUE_TAG => PointerTag::Upvalue,
+            CLOSURE_HANDLE_TAG => PointerTag::ClosureHandle,
             _ => panic!("Invalid pointer tag: {:#x}", tag_bits),
         };
         
@@ -294,6 +327,7 @@ pub enum PointerTag {
     Closure,
     NativeFn,
     Upvalue,
+    ClosureHandle,
 }
 
 impl fmt::Display for NanBoxedValue {
@@ -306,6 +340,11 @@ impl fmt::Display for NanBoxedValue {
             write!(f, "null")
         } else if self.is_string() {
             write!(f, "{}", self.as_string())
+        } else if self.is_closure_handle() {
+            let handle = self.as_closure_handle();
+            let index = handle.clone().index();
+            let generation = handle.generation();
+            write!(f, "<closure handle {}:{}>", index, generation)
         } else if self.is_pointer() {
             // For Display, we can't safely dereference non-string pointers without more context
             // So we'll just show pointer info
@@ -613,6 +652,10 @@ impl NanBoxedValue {
                         unsafe {
                             let _ = Box::from_raw(ptr as *mut crate::weave::vm::types::WeaveUpvalue);
                         }
+                    }
+                    PointerTag::ClosureHandle => {
+                        // Closure handles don't need manual deallocation - they're managed by the arena
+                        // This is the whole point of using arena allocation!
                     }
                     _ => {
                         // Unknown pointer types - don't deallocate to avoid crashes

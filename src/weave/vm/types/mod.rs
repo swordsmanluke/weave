@@ -13,3 +13,10 @@ pub use nan_boxed_value::{NanBoxedValue, PointerTag};
 pub use weave_string::WeaveString;
 pub use weave_number::WeaveNumber;
 
+// Arena type aliases for VM use
+use crate::weave::vm::arena::{Arena, Handle};
+pub type ClosureArena = Arena<FnClosure>;
+pub type ClosureHandle = Handle<FnClosure>;
+pub type StringArena = Arena<WeaveString>;
+pub type StringHandle = Handle<WeaveString>;
+

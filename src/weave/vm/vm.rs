@@ -13,6 +13,9 @@ pub struct VM {
     globals: HashMap<String, NanBoxedValue>,
     last_value: NanBoxedValue,
     open_upvalues: Vec<WeaveUpvalue>,
+    
+    // Arena allocators for memory management
+    closure_arena: crate::weave::vm::types::ClosureArena,
 }
 
 #[derive(Debug, Clone)]
@@ -169,6 +172,7 @@ impl VM {
             globals: HashMap::new(),
             last_value: NanBoxedValue::null(),
             open_upvalues: Vec::new(),
+            closure_arena: crate::weave::vm::types::ClosureArena::with_capacity(64),
         };
 
         NativeFnType::variants().iter().for_each(|fn_type| {
@@ -189,11 +193,15 @@ impl VM {
         
         let top_frame = FnClosure::new(Rc::new(func));
 
-        // Store closure as heap-allocated pointer for both stack and CallFrame
-        let closure_box = Box::new(top_frame);
-        let closure_ptr = Box::into_raw(closure_box) as *const FnClosure;
-        let closure_nan_boxed = NanBoxedValue::pointer(closure_ptr as *const (), PointerTag::Closure);
+        // Store closure in arena and create handle
+        let closure_handle = self.closure_arena.insert(top_frame);
+        let closure_nan_boxed = NanBoxedValue::closure_handle(closure_handle.clone());
         self.stack.push(closure_nan_boxed);
+        
+        // TODO: Update CallStack to use handles instead of raw pointers
+        // For now, we need to get a raw pointer for compatibility
+        let closure_ref = self.closure_arena.get(closure_handle).unwrap();
+        let closure_ptr = closure_ref as *const FnClosure;
         self.call_stack.push(closure_ptr, 0);
 
         self.debug("Interpreting...");
@@ -404,10 +412,9 @@ impl VM {
                                     }
                                 }
                                 
-                                // Store the modified closure back as a new heap allocation
-                                let closure_box = Box::new(closure);
-                                let closure_ptr = Box::into_raw(closure_box) as *const ();
-                                let closure_nan_boxed = NanBoxedValue::pointer(closure_ptr, PointerTag::Closure);
+                                // Store the modified closure in arena
+                                let closure_handle = self.closure_arena.insert(closure);
+                                let closure_nan_boxed = NanBoxedValue::closure_handle(closure_handle);
                                 self.stack.push(closure_nan_boxed);
                             }
                             _ => {
@@ -423,11 +430,33 @@ impl VM {
                     let func_slot = (self.stack.len() - 1) - arg_count;
                     let func_nan_boxed = *self.stack.get(func_slot).unwrap();
                     
-                    if func_nan_boxed.is_pointer() {
+                    if func_nan_boxed.is_closure_handle() {
+                        // New arena-based closure handle
+                        let closure_handle = func_nan_boxed.as_closure_handle();
+                        let closure = self.closure_arena.get(closure_handle).unwrap();
+                        
+                        // Inline validation
+                        if closure.func.arity != arg_count {
+                            return Err(VMError::RuntimeError { 
+                                line: self.call_stack.line_number_at(-1), 
+                                msg: format!("{} Expected {} arguments but got {}", closure.func.name, closure.func.arity, arg_count) 
+                            });
+                        }
+                        if self.call_stack.frames.len() > 100 {
+                            return Err(VMError::RuntimeError { 
+                                line: self.call_stack.line_number_at(-1), 
+                                msg: "Stack overflow".to_string() 
+                            });
+                        }
+                        
+                        // Get raw pointer for CallStack compatibility (temporary)
+                        let closure_ptr = closure as *const FnClosure;
+                        self.call_stack.push(closure_ptr, func_slot);
+                    } else if func_nan_boxed.is_pointer() {
                         let (ptr, tag) = func_nan_boxed.as_pointer();
                         match tag {
                             PointerTag::Closure => {
-                                // Get closure pointer directly (no cloning needed!)
+                                // Legacy closure pointer (during transition)
                                 let closure_ptr = ptr as *const FnClosure;
                                 let closure = unsafe { &*closure_ptr };
                                 
