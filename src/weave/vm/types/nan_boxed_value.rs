@@ -585,3 +585,40 @@ mod tests {
         assert!(null_boxed.is_null());
     }
 }
+
+impl NanBoxedValue {
+    /// Manually deallocate heap-allocated pointer if this value owns it
+    /// This should be called when a value is being discarded and won't be used again
+    pub unsafe fn deallocate(&self) {
+        if self.is_pointer() {
+            let (ptr, tag) = self.as_pointer();
+            if !ptr.is_null() {
+                match tag {
+                    PointerTag::String => {
+                        unsafe {
+                            let _ = Box::from_raw(ptr as *mut crate::weave::vm::types::WeaveString);
+                        }
+                    }
+                    PointerTag::Closure => {
+                        unsafe {
+                            let _ = Box::from_raw(ptr as *mut crate::weave::vm::types::FnClosure);
+                        }
+                    }
+                    PointerTag::NativeFn => {
+                        unsafe {
+                            let _ = Box::from_raw(ptr as *mut std::rc::Rc<crate::weave::vm::types::NativeFn>);
+                        }
+                    }
+                    PointerTag::Upvalue => {
+                        unsafe {
+                            let _ = Box::from_raw(ptr as *mut crate::weave::vm::types::WeaveUpvalue);
+                        }
+                    }
+                    _ => {
+                        // Unknown pointer types - don't deallocate to avoid crashes
+                    }
+                }
+            }
+        }
+    }
+}

@@ -329,6 +329,8 @@ impl VM {
                     // Now we can clean up the stack - remove everything from the frame slot onwards
                     self.stack.truncate(current_frame_slot);
                     
+                    // TODO: Implement proper closure cleanup to prevent memory leaks
+                    
                     self.call_stack.pop();
                     if self.call_stack.is_empty() {
                         #[cfg(feature = "vm-profiling")]
