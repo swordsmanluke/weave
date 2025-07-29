@@ -31,22 +31,24 @@ struct CallStack  {
 }
 
 pub struct CallFrame {
-    pub closure: FnClosure,
+    pub closure: *const FnClosure,
     pub slot: usize,
     ip: IP,
 }
 
 impl CallFrame {
-    pub fn new(closure: FnClosure, slot: usize) -> CallFrame {
+    pub fn new(closure_ptr: *const FnClosure, slot: usize) -> CallFrame {
+        let closure = unsafe { &*closure_ptr };
         let ip = IP::new(&closure.func.chunk.code);
-        CallFrame { closure, ip, slot}
+        CallFrame { closure: closure_ptr, ip, slot}
     }
     
     /// Reuse this frame for a new function call (avoids allocation)
-    pub fn reset(&mut self, closure: FnClosure, slot: usize) {
-        self.closure = closure;
+    pub fn reset(&mut self, closure_ptr: *const FnClosure, slot: usize) {
+        let closure = unsafe { &*closure_ptr };
+        self.closure = closure_ptr;
         self.slot = slot;
-        self.ip = IP::new(&self.closure.func.chunk.code);
+        self.ip = IP::new(&closure.func.chunk.code);
     }
 
     pub fn i(&self, idx: usize) -> usize {
@@ -62,14 +64,14 @@ impl CallStack {
         }
     }
     
-    pub fn push(&mut self, closure: FnClosure, slot: usize) {
+    pub fn push(&mut self, closure_ptr: *const FnClosure, slot: usize) {
         // Try to reuse a frame from the pool first
         if let Some(mut frame) = self.frame_pool.pop() {
-            frame.reset(closure, slot);
+            frame.reset(closure_ptr, slot);
             self.frames.push(frame);
         } else {
             // Create new frame only if pool is empty
-            let frame = CallFrame::new(closure, slot);
+            let frame = CallFrame::new(closure_ptr, slot);
             self.frames.push(frame);
         }
     }
@@ -86,11 +88,13 @@ impl CallStack {
     }
     
     pub fn disassemble(&self, name: &str) {
-        self.frames.last().unwrap().closure.func.chunk.disassemble(name).unwrap();
+        let closure = unsafe { &*self.frames.last().unwrap().closure };
+        closure.func.chunk.disassemble(name).unwrap();
     }
     
     pub fn constants(&self) -> &Vec<NanBoxedValue> {
-        &self.frames.last().unwrap().closure.func.chunk.constants
+        let closure = unsafe { &*self.frames.last().unwrap().closure };
+        &closure.func.chunk.constants
     }
 
     pub fn next_op(&mut self) -> Op {
@@ -120,11 +124,13 @@ impl CallStack {
 
     pub fn line_number_at(&mut self, offset: isize) -> usize {
         let point = self.cur_frame().ip.idx(offset);
-        self.cur_frame().closure.func.chunk.line_number_at(point)
+        let closure = unsafe { &*self.cur_frame().closure };
+        closure.func.chunk.line_number_at(point)
     }
 
     pub fn get_constant(&mut self, idx: usize) -> NanBoxedValue {
-        self.cur_frame().closure.func.chunk.get_constant(idx)
+        let closure = unsafe { &*self.cur_frame().closure };
+        closure.func.chunk.get_constant(idx)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -254,7 +260,10 @@ impl VM {
         let top_frame = FnClosure::new(Rc::new(func));
 
         self._push_weave_type(WeaveType::Closure(top_frame.clone()));
-        self.call_stack.push(top_frame, 0);
+        // Store closure as heap-allocated pointer for CallFrame
+        let closure_box = Box::new(top_frame);
+        let closure_ptr = Box::into_raw(closure_box) as *const FnClosure;
+        self.call_stack.push(closure_ptr, 0);
 
         self.debug("Interpreting...");
         
@@ -325,7 +334,8 @@ impl VM {
     
     pub fn add_remote_upvalue(&mut self, closure: &mut FnClosure, uv: Upvalue) {
         // Remote upvalues reference an upvalue in the current frame's closure
-        let current_upvalues = &self.current_frame().closure.upvalues;
+        let current_closure = unsafe { &*self.current_frame().closure };
+        let current_upvalues = &current_closure.upvalues;
         
         // Bounds check
         if (uv.idx as usize) >= current_upvalues.len() {
@@ -338,7 +348,8 @@ impl VM {
     }
     
     pub fn get_upvalue(&self, idx: usize) -> Option<WeaveType> {
-        self.current_frame().closure.upvalues.get(idx).map(|uv| uv.value(self))
+        let closure = unsafe { &*self.current_frame().closure };
+        closure.upvalues.get(idx).map(|uv| uv.value(self))
     }
 
     pub fn close_upvalues(&mut self, last_slot: usize) {
@@ -505,7 +516,8 @@ impl VM {
                                 // Process upvalues that follow the closure constant
                                 for _ in 0..closure.func.upvalue_count {
                                     let frame = self.call_stack.cur_frame();
-                                    let bytecode = &frame.closure.func.chunk.code;
+                                    let frame_closure = unsafe { &*frame.closure };
+                                    let bytecode = &frame_closure.func.chunk.code;
                                     let offset = frame.ip.ip;
                                     let upvalue = Upvalue::from_bytes(bytecode, offset);
                                     // Skip the upvalue bytes we just read
@@ -544,8 +556,9 @@ impl VM {
                         let (ptr, tag) = func_nan_boxed.as_pointer();
                         match tag {
                             PointerTag::Closure => {
-                                // Cast pointer back to FnClosure
-                                let closure = unsafe { &*(ptr as *const FnClosure) };
+                                // Get closure pointer directly (no cloning needed!)
+                                let closure_ptr = ptr as *const FnClosure;
+                                let closure = unsafe { &*closure_ptr };
                                 
                                 // Inline validation to eliminate double cloning
                                 if closure.func.arity != arg_count {
@@ -561,8 +574,8 @@ impl VM {
                                     });
                                 }
                                 
-                                // Standard path: full CallFrame creation  
-                                self.call_stack.push(closure.clone(), func_slot);
+                                // Pass closure pointer directly - NO CLONING!
+                                self.call_stack.push(closure_ptr, func_slot);
                             }
                             PointerTag::NativeFn => {
                                 // Cast pointer back to NativeFn
@@ -624,7 +637,8 @@ impl VM {
                 Op::GetUpvalue => {
                     let slot = self.call_stack.next_byte() as usize;
                     // Ultra-fast path: direct NanBoxedValue access with Copy semantics
-                    let upvalue = self.call_stack.cur_frame().closure.upvalues[slot].clone();
+                    let closure = unsafe { &*self.call_stack.cur_frame().closure };
+                    let upvalue = closure.upvalues[slot].clone();
                     let nan_boxed_value = upvalue.get_fast(self);
                     self.stack.push(nan_boxed_value);
                 }
@@ -632,8 +646,8 @@ impl VM {
                     let slot = self.call_stack.next_byte() as usize;
                     // Ultra-fast path: direct NanBoxedValue access with Copy semantics
                     let nan_boxed_value = self.stack[self.stack.len() - 1]; // peek top of stack
-                    let upvalue = self.call_stack.frames.last().unwrap()
-                        .closure.upvalues[slot].clone();
+                    let closure = unsafe { &*self.call_stack.frames.last().unwrap().closure };
+                    let upvalue = closure.upvalues[slot].clone();
                     upvalue.set_fast(nan_boxed_value, self);
                 }
                 Op::SetGlobal => {
@@ -865,7 +879,8 @@ impl VM {
     fn runtime_error(&mut self, line: usize, msg: &String) {
         let callstack = self.call_stack.frames.iter().rev();
         for frame in callstack {
-            let func = &frame.closure.func;
+            let closure = unsafe { &*frame.closure };
+            let func = &closure.func;
             let line = func.chunk.line_number_at(frame.ip.idx(-1));
             
             log_error!("Runtime error in function", 
