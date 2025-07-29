@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use crate::weave::vm::types::{WeaveType, NanBoxedValue};
+use crate::weave::vm::types::NanBoxedValue;
 use crate::weave::vm::vm::VMError;
 use std::time::SystemTime;
 use crate::log_debug;

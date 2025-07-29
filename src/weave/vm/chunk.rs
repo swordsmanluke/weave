@@ -1,7 +1,7 @@
 use std::fmt::{Error};
 use crate::weave::Op;
 use crate::weave::vm::traits::disassemble::Disassemble;
-use crate::weave::vm::types::{Upvalue, WeaveType, NanBoxedValue};
+use crate::weave::vm::types::NanBoxedValue;
 use crate::log_debug;
 
 #[derive(Clone, Debug)]

@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use crate::weave::Chunk;
 use crate::weave::vm::types::weave_upvalue::WeaveUpvalue;
-use crate::weave::vm::types::WeaveType;
+use crate::weave::vm::types::NanBoxedValue;
 
 #[derive(Clone)]
 pub struct WeaveFn {
@@ -16,13 +16,13 @@ pub struct WeaveFn {
 #[derive(Clone, Debug)]
 pub struct FnParam {
     name: String,
-    default: Option<WeaveType>,
+    default: Option<NanBoxedValue>,
 }
 
 #[derive(Clone, Debug)]
 pub struct FnArg {
     binding: Option<String>,
-    value: WeaveType
+    value: NanBoxedValue
 }
 
 // This upvalue class is the bridge between compiling

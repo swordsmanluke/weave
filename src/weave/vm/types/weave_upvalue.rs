@@ -1,6 +1,6 @@
-use crate::weave::vm::types::upvalues::inner::{UpvalAccessor, ClosedUpvalue, OpenUpvalue};
+use crate::weave::vm::types::upvalues::inner::UpvalAccessor;
 use crate::weave::vm::types::upvalues::InnerUpvalue;
-use crate::weave::vm::types::{WeaveType, NanBoxedValue};
+use crate::weave::vm::types::NanBoxedValue;
 use crate::weave::vm::vm::VM;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -16,11 +16,11 @@ impl WeaveUpvalue {
         WeaveUpvalue { value: Rc::new(RefCell::new(value)) }
     }
 
-    pub fn value(&self, vm: &VM) -> WeaveType {
+    pub fn value(&self, vm: &VM) -> NanBoxedValue {
         self.value.borrow().get(vm)
     }
 
-    pub fn set(&mut self, v: WeaveType, vm: &mut VM) {
+    pub fn set(&mut self, v: NanBoxedValue, vm: &mut VM) {
         self.value.borrow_mut().set(v, vm)
     }
 
@@ -42,17 +42,17 @@ impl WeaveUpvalue {
 
     /// Direct access to the inner value for performance-critical operations
     /// Optimized with fast path for closed upvalues (most common in hot loops)
-    pub fn get_direct(&self, vm: &VM) -> WeaveType {
+    pub fn get_direct(&self, vm: &VM) -> NanBoxedValue {
         let borrowed = self.value.borrow();
         match &*borrowed {
             InnerUpvalue::Closed(closed) => {
                 // Fast path: direct access to closed upvalue without trait dispatch
-                closed.data.borrow().weave_value.clone()
+                *closed.value.borrow()
             }
             InnerUpvalue::Open(open) => {
                 // Slower path: open upvalue access through stack
                 let slot = open.idx;
-                vm.get_stack_var(slot).unwrap().clone()
+                vm.get_stack_value(slot)
             }
         }
     }
@@ -67,28 +67,25 @@ impl WeaveUpvalue {
                 closed.get_fast()
             }
             InnerUpvalue::Open(open) => {
-                // Open upvalue: get from stack and convert
+                // Open upvalue: get directly from stack
                 let slot = open.idx;
-                let weave_val = vm.get_stack_var(slot).unwrap().clone();
-                vm.weave_type_to_nan_boxed(weave_val)
+                vm.get_stack_value(slot)
             }
         }
     }
 
     /// Direct set access for performance-critical operations  
     /// Optimized with fast path for closed upvalues (most common in hot loops)
-    pub fn set_direct(&self, v: WeaveType, vm: &mut VM) {
+    pub fn set_direct(&self, v: NanBoxedValue, vm: &mut VM) {
         let mut borrowed = self.value.borrow_mut();
         match &mut *borrowed {
             InnerUpvalue::Closed(closed) => {
                 // Fast path: direct access to closed upvalue without trait dispatch
-                let mut data = closed.data.borrow_mut();
-                data.weave_value = v;
-                data.is_fast_dirty = true; // Fast value needs sync
+                *closed.value.borrow_mut() = v;
             }
             InnerUpvalue::Open(open) => {
                 // Slower path: open upvalue access through stack
-                vm.set_stack_var(open.idx, v);
+                vm.set_stack_value(open.idx, v);
             }
         }
     }
@@ -103,9 +100,8 @@ impl WeaveUpvalue {
                 closed.set_fast(v);
             }
             InnerUpvalue::Open(open) => {
-                // Open upvalue: convert and set on stack
-                let weave_val = vm.nan_boxed_to_weave_type(v);
-                vm.set_stack_var(open.idx, weave_val);
+                // Open upvalue: set directly on stack
+                vm.set_stack_value(open.idx, v);
             }
         }
     }

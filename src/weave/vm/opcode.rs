@@ -2,7 +2,6 @@ use crate::weave::Chunk;
 use crate::weave::Op::INVALID;
 use crate::weave::vm::traits::disassemble::Disassemble;
 use crate::log_debug;
-use crate::weave::vm::types::{FnClosure, Upvalue, WeaveType};
 
 #[derive(Debug, PartialEq)]
 pub enum Op {

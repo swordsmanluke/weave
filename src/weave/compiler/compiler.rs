@@ -1,15 +1,12 @@
 use std::cmp::PartialEq;
-use std::io::{stdout, Write};
-use std::rc::Rc;
-use std::mem;
 use crate::weave::compiler::parse_rule::ParseRule;
 use crate::weave::compiler::parser::Parser;
 use crate::weave::compiler::precedence::Precedence;
 use crate::weave::compiler::token::{Token, TokenType};
 use crate::weave::compiler::internal::Scope;
-use crate::weave::vm::types::{WeaveType, WeaveFn, WeaveUpvalue, FnClosure, Upvalue, NanBoxedValue, PointerTag};
+use crate::weave::vm::types::{WeaveFn, FnClosure, Upvalue, NanBoxedValue, PointerTag};
 use crate::weave::{Chunk, Op};
-use crate::{log_debug, log_info, log_warn, log_error};
+use crate::{log_debug, log_info, log_error};
 
 pub type CompileResult = Result<WeaveFn, String>;
  
