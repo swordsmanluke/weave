@@ -1,0 +1,24 @@
+# Test intensive closure creation performance (5000 closures)
+fn outer(value) {
+    # Create a closure that captures the value parameter
+    fn inner() {
+        return value  # This captures 'value' from outer scope
+    }
+    
+    # Call the closure to force upvalue creation
+    result = inner()
+    return result
+}
+
+# Test creating 5000 closures
+fn test_many_closures() {
+    i = 0
+    while i < 5000 {
+        result = outer(i)  # Each call creates a new closure with upvalue
+        i = i + 1
+    }
+    puts "Completed 5000 closures"
+    puts i
+}
+
+test_many_closures()

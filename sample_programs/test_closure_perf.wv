@@ -1,0 +1,13 @@
+# Test actual closure creation and invocation performance
+fn test_closure_creation() {
+    i = 0
+    while i < 1000 {
+        # Create a closure that captures variable i
+        closure_fn = ^(x) { x + i }
+        result = closure_fn(5)
+        i = i + 1
+    }
+    puts i  # Should be 1000
+}
+
+test_closure_creation()
