@@ -1,0 +1,11 @@
+# Task ID: 23
+# Title: Implement Container data structure
+# Status: pending
+# Dependencies: 18
+# Priority: medium
+# Description: Add support for list syntax [1, 2, 3] and key-value pair syntax [a: 1, b: 2] with indexing operations and WeaveContainer type implementation.
+# Details:
+Implement comprehensive Container support for the Weave language: 1) Add LIST_START ([), LIST_END (]), COLON (:) tokens to scanner.rs for container syntax recognition. 2) Extend parser.rs to handle list literals in primary expressions - parse [1, 2, 3] as list expressions and [key: value, key2: value2] as map expressions, add container parsing rules to expression grammar with proper precedence. 3) Create WeaveContainer type in types/ directory implementing both list and map functionality - use Vec<WeaveValue> for lists and HashMap<String, WeaveValue> for maps, implement efficient indexing operations. 4) Add container opcodes to bytecode: MAKE_LIST, MAKE_MAP, INDEX_GET, INDEX_SET for runtime operations. 5) Implement container operations in VM - handle list/map creation, indexing with bounds checking, support both numeric indices for lists and string keys for maps. 6) Add container methods like length(), push(), keys() as built-in functions. 7) Ensure containers work with existing language features like assignment, function parameters, and closures.
+
+# Test Strategy:
+Create comprehensive test suite for container functionality: 1) Scanner tests verifying container token recognition for [, ], : symbols and complex nested structures. 2) Parser tests for list literals [1, 2, 3], map literals [a: 1, b: 2], nested containers [[1, 2], [3, 4]], and mixed types. 3) VM execution tests for container creation, indexing operations list[0], map["key"], assignment operations, bounds checking errors. 4) Integration tests with functions accepting containers as parameters, containers in closures, container iteration. 5) Performance tests for large containers and deep nesting scenarios.

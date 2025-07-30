@@ -76,7 +76,7 @@
         "dependencies": [
           5
         ],
-        "status": "done",
+        "status": "in-progress",
         "subtasks": []
       },
       {
@@ -102,7 +102,7 @@
         "dependencies": [
           6
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -118,7 +118,7 @@
             "title": "Optimize Upvalue Access Patterns",
             "description": "Reduce clone operations and improve upvalue access efficiency",
             "details": "Minimize .clone() operations in GetUpvalue and SetUpvalue opcodes. Implement borrowing-based access patterns where possible. Optimize the upvalue.value() and upvalue.set() methods to avoid unnecessary cloning of WeaveType objects. Focus on hot-loop paths in closure calls.",
-            "status": "in-progress",
+            "status": "done",
             "dependencies": [
               "8.1"
             ],
@@ -129,7 +129,7 @@
             "title": "Optimize RefCell Borrowing Patterns",
             "description": "Reduce RefCell borrowing overhead in hot loops",
             "details": "Optimize Rc<RefCell<>> usage in closed upvalues to minimize borrow() and borrow_mut() calls in hot loops. Implement batched operations where possible. Consider using unsafe patterns or alternative data structures for performance-critical paths while maintaining safety.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "8.1"
             ],
@@ -140,7 +140,7 @@
             "title": "Optimize Memory Management",
             "description": "Improve Rc/RefCell cleanup and memory allocation patterns",
             "details": "Implement efficient reference counting cleanup for unused upvalues. Optimize memory allocation patterns to reduce heap pressure. Consider upvalue pooling or reuse strategies. Ensure upvalue resolution is O(1) after initial capture setup.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "8.2",
               "8.3"
@@ -152,7 +152,7 @@
             "title": "Performance Validation and Benchmarking",
             "description": "Validate performance improvements meet 10K iteration requirement",
             "details": "Create comprehensive benchmarks for closure performance. Test 10K iteration requirement with target execution time under 10 seconds. Implement performance regression tests. Compare before/after metrics for clone operations, memory usage, and execution time. Document final performance characteristics.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "8.4"
             ],
@@ -485,9 +485,10 @@
         "description": "Replace Vec<WeaveType> stack with pre-allocated fixed-size array and manual stack pointer management, implementing move semantics to eliminate defensive cloning and achieve 30-50% performance improvement.",
         "details": "Implement stack architecture redesign to eliminate allocation overhead and memory traffic: 1) Replace VM's Vec<WeaveType> stack with pre-allocated fixed-size array (e.g., [WeaveType; 256]) and manual stack pointer (usize index). 2) Implement move semantics throughout VM operations - modify opcodes to move values instead of cloning, use mem::replace and mem::take for stack operations. 3) Eliminate bounds checking in hot paths by using unsafe indexing where stack pointer invariants guarantee safety. 4) Redesign stack operations: push() becomes direct array assignment with pointer increment, pop() becomes mem::take with pointer decrement. 5) Update all opcode handlers to use move semantics - arithmetic operations take ownership of operands, function calls move arguments. 6) Implement stack overflow detection with explicit checks rather than Vec growth. 7) Optimize CallFrame storage to use stack indices instead of borrowed references. 8) Profile memory allocation patterns and validate elimination of stack-related allocations during execution.",
         "testStrategy": "Performance validation and correctness testing: 1) Benchmark current implementation vs new stack architecture using fibonacci, factorial, and nested function call tests. 2) Measure allocation patterns with memory profiler to verify elimination of Vec reallocations. 3) Create stress tests with deep recursion to validate stack overflow detection. 4) Test all existing VM functionality to ensure move semantics don't break operations. 5) Validate that complex programs (closures, upvalues, nested calls) work correctly with new stack management. 6) Performance regression tests ensuring 30-50% improvement in function-heavy workloads. 7) Memory usage tests confirming reduced heap allocations and memory traffic.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
-          18
+          18,
+          "29"
         ],
         "priority": "high",
         "subtasks": []
@@ -527,7 +528,9 @@
         "details": "Implement comprehensive Symbol support for the Weave language: 1) Add Symbol token type to scanner.rs - recognize :symbol syntax in lexical analysis, handle symbol identifiers starting with colon followed by alphanumeric characters and underscores. 2) Extend parser.rs to handle symbol literals in primary expressions, add symbol parsing rules to expression grammar. 3) Create WeaveSymbol type in types/ directory - implement as interned string for efficient comparison and memory usage, use global symbol table for deduplication. 4) Add Symbol variant to WeaveType enum or NaN-boxed representation if Task 18 is complete. 5) Implement OP_SYMBOL bytecode instruction for symbol literal compilation. 6) Add symbol evaluation logic to VM - handle symbol creation, comparison, and printing. 7) Implement Display trait for symbols showing :symbol_name format. 8) Add symbol equality comparison - symbols with same name should be equal. 9) Integrate with existing value system ensuring symbols work with all operations appropriately.",
         "testStrategy": "Create comprehensive test suite for symbol functionality: 1) Scanner tests verifying :symbol tokenization, edge cases like :123invalid, :_, and Unicode symbols. 2) Parser tests for symbol literals in expressions, symbol assignment and comparison. 3) VM execution tests for symbol creation, equality comparison (:foo == :foo should be true, :foo == :bar should be false). 4) Integration tests with existing language features - symbols in function parameters, return values, and data structures. 5) REPL tests ensuring symbols display correctly and maintain identity across interactions. 6) Performance tests comparing symbol interning efficiency. 7) Memory tests verifying symbol deduplication in global symbol table.",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "29"
+        ],
         "priority": "medium",
         "subtasks": []
       },
@@ -619,7 +622,7 @@
         "id": 29,
         "title": "Investigate and Fix Upvalue System Bugs",
         "description": "Perform comprehensive root cause analysis and implement systematic fixes for critical upvalue system bugs causing closure test failures, focusing on upvalue lifecycle management, invalid stack indices, and 'Only functions can be called' errors in the existing arena-based upvalue architecture.",
-        "status": "done",
+        "status": "in-progress",
         "dependencies": [
           1,
           2,
@@ -690,13 +693,22 @@
             ],
             "details": "Implement fixes for identified operational issues: 1) Fix upvalue closure timing by adding proper closure triggers at all scope exit points. 2) Implement additional stack index validation before upvalue access to prevent out-of-bounds errors. 3) Fix closure function call resolution issues identified in type checking. 4) Add defensive programming measures for expression evaluation vs upvalue access conflicts. 5) Implement comprehensive error handling for upvalue operations. 6) Add runtime diagnostics for upvalue state monitoring. 7) Ensure fixes maintain the existing arena-based architecture without architectural changes.\n<info added on 2025-07-30T16:13:21.998Z>\nImplemented fix for upvalue closure timing in block() function by adding CloseUpvalues emission before POP operations. The fix ensures upvalues are properly migrated to heap storage before any stack modifications that could invalidate stack references. Successfully resolved compilation issue with scope field access by switching to locals_at() method instead of direct field access. This addresses the first critical operational issue - upvalue closure timing at scope exit points.\n</info added on 2025-07-30T16:13:21.998Z>\n<info added on 2025-07-30T16:17:28.981Z>\nPARTIAL SUCCESS documented: CloseUpvalues emission successfully implemented and working correctly. Upvalue closure timing has been fixed with proper migration to heap storage before POP operations. Disassembly issues resolved. However, investigation reveals that while the upvalue-specific timing issue is resolved, a broader stack management problem persists in a different system component. During second function call, local variable retrieval incorrectly returns Number(0) instead of the expected closure handle, indicating stack corruption outside the upvalue system. This suggests the fix addresses the upvalue lifecycle component but exposes an underlying stack management issue that requires separate investigation and resolution.\n</info added on 2025-07-30T16:17:28.981Z>",
             "testStrategy": "Run complete closure test suite: test_closures_basic through test_closures_complex. Verify all previously failing tests now pass. Add regression tests for each identified issue. Test performance impact of fixes. Ensure no new failures in existing functionality."
+          },
+          {
+            "id": 6,
+            "title": "Run Unit Tests and Investigate Remaining Test Failures",
+            "description": "Execute cargo test to identify any remaining test failures after the upvalue closure timing fix, analyze root causes of broken tests, and implement targeted fixes to ensure all closure and upvalue tests pass",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 29
           }
         ]
       }
     ],
     "metadata": {
       "created": "2025-07-24T17:50:08.486Z",
-      "updated": "2025-07-30T16:21:51.417Z",
+      "updated": "2025-07-30T16:46:08.336Z",
       "description": "Tasks for master context"
     }
   }

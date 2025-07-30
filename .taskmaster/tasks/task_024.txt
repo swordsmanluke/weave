@@ -1,0 +1,11 @@
+# Task ID: 24
+# Title: Implement Function Pipeline Operators
+# Status: pending
+# Dependencies: 23, 18
+# Priority: medium
+# Description: Add |> pipe, *> map, and &> reduce operators with parsing, compilation, and VM execution for data transformation pipelines.
+# Details:
+Implement comprehensive pipeline operator support for the Weave language: 1) Add PIPE (|>), MAP (*>), and REDUCE (&>) tokens to scanner.rs with proper operator recognition and precedence. 2) Extend parser.rs to handle pipeline expressions - parse expressions like 'data |> transform |> filter' as left-associative binary operations, add pipeline parsing rules with appropriate precedence levels (pipe lower than arithmetic, map/reduce similar to pipe). 3) Add new opcodes (PIPE, MAP, REDUCE) to vm.rs instruction set. 4) Implement pipeline execution in VM - PIPE passes left operand as first argument to right operand function, MAP applies function to each element of container, REDUCE applies binary function across container elements with accumulator. 5) Add pipeline operator support to compiler.rs - emit appropriate opcodes for pipeline expressions, handle function call transformation for pipe operations. 6) Ensure pipeline operators work with existing function types, closures, and native functions. 7) Add error handling for invalid pipeline operations (non-function right operands, type mismatches).
+
+# Test Strategy:
+Create comprehensive test suite for pipeline operators: 1) Scanner tests verifying |>, *>, &> token recognition and precedence handling. 2) Parser tests for simple pipelines (a |> f), chained pipelines (a |> f |> g), mixed operator expressions, and precedence interactions. 3) VM execution tests for pipe operator with functions and closures, map operator with containers and transformation functions, reduce operator with binary functions and initial values. 4) Integration tests combining pipeline operators with existing language features like closures, native functions, and container operations. 5) Error handling tests for invalid pipeline usage (non-function operands, type errors). 6) Performance tests for pipeline operation efficiency compared to nested function calls.

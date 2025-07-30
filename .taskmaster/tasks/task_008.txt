@@ -1,6 +1,6 @@
 # Task ID: 8
 # Title: Optimize Performance and Memory Usage
-# Status: in-progress
+# Status: done
 # Dependencies: 6
 # Priority: medium
 # Description: Minimize clone operations and optimize upvalue resolution for hot-loop performance
@@ -17,25 +17,25 @@ Performance benchmarks for hot-loop closure usage, memory usage profiling, verif
 ### Details:
 Use profiling tools to identify where the 55-second execution time for 5K iterations is being spent. Focus on upvalue access patterns, clone operations, and RefCell borrowing overhead. Create performance baseline measurements.
 
-## 2. Optimize Upvalue Access Patterns [in-progress]
+## 2. Optimize Upvalue Access Patterns [done]
 ### Dependencies: 8.1
 ### Description: Reduce clone operations and improve upvalue access efficiency
 ### Details:
 Minimize .clone() operations in GetUpvalue and SetUpvalue opcodes. Implement borrowing-based access patterns where possible. Optimize the upvalue.value() and upvalue.set() methods to avoid unnecessary cloning of WeaveType objects. Focus on hot-loop paths in closure calls.
 
-## 3. Optimize RefCell Borrowing Patterns [pending]
+## 3. Optimize RefCell Borrowing Patterns [done]
 ### Dependencies: 8.1
 ### Description: Reduce RefCell borrowing overhead in hot loops
 ### Details:
 Optimize Rc<RefCell<>> usage in closed upvalues to minimize borrow() and borrow_mut() calls in hot loops. Implement batched operations where possible. Consider using unsafe patterns or alternative data structures for performance-critical paths while maintaining safety.
 
-## 4. Optimize Memory Management [pending]
+## 4. Optimize Memory Management [done]
 ### Dependencies: 8.2, 8.3
 ### Description: Improve Rc/RefCell cleanup and memory allocation patterns
 ### Details:
 Implement efficient reference counting cleanup for unused upvalues. Optimize memory allocation patterns to reduce heap pressure. Consider upvalue pooling or reuse strategies. Ensure upvalue resolution is O(1) after initial capture setup.
 
-## 5. Performance Validation and Benchmarking [pending]
+## 5. Performance Validation and Benchmarking [done]
 ### Dependencies: 8.4
 ### Description: Validate performance improvements meet 10K iteration requirement
 ### Details:

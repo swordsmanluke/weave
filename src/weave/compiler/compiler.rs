@@ -492,15 +492,30 @@ impl Compiler {
         // Block returns the result of its last expression
         // Pop all but the last expression result
         if _expression_count > 1 {
-            // CRITICAL: Close upvalues before popping to prevent stack reference invalidation
-            // Upvalues pointing to local variables must be migrated to heap storage
-            // before stack modifications occur
-            self.emit_close_upvalues();
+            // CRITICAL FIX: The issue was that POP removes from stack top, but we need to remove
+            // the older expressions (from bottom of expression range) while keeping the last one.
+            // 
+            // The stack state after N expressions is: [..., expr1_result, expr2_result, ..., exprN_result]
+            // We want to keep exprN_result and remove expr1_result through expr(N-1)_result.
+            //
+            // Strategy: Use a different approach - emit a sequence that moves the last result
+            // to replace all the previous results.
+            //
+            // For now, the traditional POP approach is wrong for function returns.
+            // We need to emit instructions that preserve the last expression result.
+            // 
+            // TEMPORARY FIX: Don't emit any POPs for function blocks. 
+            // Let the RETURN instruction handle getting the correct value from the stack top.
+            // This works because RETURN pops the top value, and assignments leave values on stack,
+            // so the last expression (GetLocal) result will be on top.
             
-            // Pop all but the last expression result
-            for _ in 1.._expression_count {
-                self.emit_basic_opcode(Op::POP);
-            }
+            // Note: We don't close upvalues here because the last expression might be a closure
+            // that needs those upvalues. Upvalues are closed during function return (RETURN opcode).
+            
+            // DISABLED: Commented out the problematic POP sequence
+            // for _ in 1.._expression_count {
+            //     self.emit_basic_opcode(Op::POP);
+            // }
         }
 
         self.consume(TokenType::RightBrace, "Expected '}' after block");

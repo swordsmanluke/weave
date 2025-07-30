@@ -1,6 +1,6 @@
 # Task ID: 18
 # Title: Implement NaN-boxing Value Representation for WeaveType
-# Status: pending
+# Status: done
 # Dependencies: None
 # Priority: high
 # Description: Replace the current 32-byte WeaveType enum with 64-bit NaN-boxing to store numbers, booleans, and null directly in a single 64-bit value, eliminating boxing overhead and reducing memory traffic by 4x.
@@ -79,25 +79,25 @@ COMPLETED: Successfully replaced WeaveType with NanBoxedValue in VM core structu
 The VM now uses NaN-boxing internally while maintaining WeaveType compatibility through conversion helpers. Ready for next subtask to implement direct NaN-boxed operations.
 </info added on 2025-07-28T20:52:02.794Z>
 
-## 3. Update VM Opcodes for NaN-boxed Operations [in-progress]
+## 3. Update VM Opcodes for NaN-boxed Operations [done]
 ### Dependencies: 18.2
 ### Description: Modify all VM opcodes to operate on NaN-boxed values directly, implementing fast paths for arithmetic operations
 ### Details:
 Update all opcodes in vm.rs to work with NanBoxedValue: Implement fast-path arithmetic operations (Add, Subtract, Multiply, Divide) that check if both operands are numbers using inline bit tests and operate on raw f64 values without unpacking. Update comparison operations to handle NaN-boxed values correctly. Modify CONSTANT, GetLocal, SetLocal, GetGlobal, SetGlobal to work with NanBoxedValue. Update function call and return mechanisms to handle NaN-boxed values. Implement branchless arithmetic using conditional moves where possible. Add specialized opcodes for common patterns like number-to-number operations.
 
-## 4. Implement Pointer Management and Garbage Collection Updates [pending]
+## 4. Implement Pointer Management and Garbage Collection Updates [done]
 ### Dependencies: 18.3
 ### Description: Update pointer storage, retrieval, and garbage collection to work correctly with NaN-boxed pointer values
 ### Details:
 Implement pointer encoding/decoding for heap-allocated types (strings, functions, closures): Design pointer tagging scheme using available bits in 48-bit payload space, ensure pointer values maintain proper alignment for platform requirements. Update garbage collector to extract and trace pointers from NaN-boxed values, implement fast pointer extraction using bit masking. Update string interning, function allocation, and closure creation to return NaN-boxed pointers. Add safety checks in debug builds to verify pointer validity. Implement efficient batch pointer extraction for GC marking phase.
 
-## 5. Performance Optimization and Validation [pending]
+## 5. Performance Optimization and Validation [done]
 ### Dependencies: 18.4
 ### Description: Implement critical performance optimizations and validate 4x memory traffic reduction goal with comprehensive benchmarks
 ### Details:
 Implement performance-critical optimizations: Add inline assembly or intrinsics for ultra-fast type checking (test high 16 bits), optimize hot paths in arithmetic operations using SIMD where applicable. Implement bulk stack operations using memcpy for value moves. Add compiler hints for branch prediction in type dispatch. Create comprehensive benchmark suite measuring: memory bandwidth reduction (target 4x improvement), arithmetic operation throughput, type checking overhead, overall VM execution speed on real workloads (fibonacci, mandelbrot, closure-heavy code). Profile and optimize cache usage patterns. Document performance characteristics and tuning guidelines.
 
-## 6. Complete WeaveType Elimination [pending]
+## 6. Complete WeaveType Elimination [done]
 ### Dependencies: 18.3
 ### Description: Completely eliminate WeaveType throughout the codebase, replacing with NanBoxedValue to eliminate all type conversion overhead
 ### Details:
@@ -110,7 +110,7 @@ Replace WeaveType completely with NanBoxedValue in:
 
 This eliminates the dual-type system overhead that causes 6-8 conversions per function call, achieving the target 20-50x performance improvement.
 
-## 7. Fix Function Call Performance Scaling Issues [pending]
+## 7. Fix Function Call Performance Scaling Issues [done]
 ### Dependencies: 18.6
 ### Description: Address O(n²) scaling behavior and optimize function call hot paths to achieve 10,000+ calls/second
 ### Details:

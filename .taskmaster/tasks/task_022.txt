@@ -1,0 +1,11 @@
+# Task ID: 22
+# Title: Implement Symbols support
+# Status: pending
+# Dependencies: 29
+# Priority: medium
+# Description: Add :symbol syntax parsing, Symbol token type, and WeaveSymbol type in VM with symbol literal recognition and evaluation
+# Details:
+Implement comprehensive Symbol support for the Weave language: 1) Add Symbol token type to scanner.rs - recognize :symbol syntax in lexical analysis, handle symbol identifiers starting with colon followed by alphanumeric characters and underscores. 2) Extend parser.rs to handle symbol literals in primary expressions, add symbol parsing rules to expression grammar. 3) Create WeaveSymbol type in types/ directory - implement as interned string for efficient comparison and memory usage, use global symbol table for deduplication. 4) Add Symbol variant to WeaveType enum or NaN-boxed representation if Task 18 is complete. 5) Implement OP_SYMBOL bytecode instruction for symbol literal compilation. 6) Add symbol evaluation logic to VM - handle symbol creation, comparison, and printing. 7) Implement Display trait for symbols showing :symbol_name format. 8) Add symbol equality comparison - symbols with same name should be equal. 9) Integrate with existing value system ensuring symbols work with all operations appropriately.
+
+# Test Strategy:
+Create comprehensive test suite for symbol functionality: 1) Scanner tests verifying :symbol tokenization, edge cases like :123invalid, :_, and Unicode symbols. 2) Parser tests for symbol literals in expressions, symbol assignment and comparison. 3) VM execution tests for symbol creation, equality comparison (:foo == :foo should be true, :foo == :bar should be false). 4) Integration tests with existing language features - symbols in function parameters, return values, and data structures. 5) REPL tests ensuring symbols display correctly and maintain identity across interactions. 6) Performance tests comparing symbol interning efficiency. 7) Memory tests verifying symbol deduplication in global symbol table.
