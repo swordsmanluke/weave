@@ -236,10 +236,11 @@ impl VM {
     
     pub fn add_local_upvalue(&mut self, closure: &mut FnClosure, uv: Upvalue) {
         // Creates a new upvalue for a local variable, storing it in the arena
-        // uv.idx is the local variable index in the current frame
+        // uv.idx is the local variable index in the PARENT frame where the variable is defined
         
         // For local upvalues, they come from the current frame where local variables exist
-        let current_frame_idx = self.call_stack.frames.len() - 1;
+        // The Closure operation runs within the frame that contains the captured variables
+        let current_frame_idx = self.call_stack.frames.len() - 1; // Current frame
         let current_frame = &self.call_stack.frames[current_frame_idx];
         let current_frame_slot = current_frame.slot;
         let absolute_slot = current_frame_slot + uv.idx as usize;
@@ -254,6 +255,7 @@ impl VM {
         // Create new upvalue and store it in the arena
         let new_upvalue = WeaveUpvalue::open(absolute_slot);
         let upvalue_handle = self.upvalue_arena.insert(new_upvalue);
+        
         
         // Store the arena handle in the closure
         closure.upvalues.push(upvalue_handle.clone());
@@ -277,27 +279,24 @@ impl VM {
     
 
     pub fn close_upvalues(&mut self, last_slot: usize) {
-        // With arena-based upvalues, we need to iterate through all upvalues in the arena
-        // and close those that reference stack slots >= last_slot
+        // Close all upvalues that reference stack slots >= last_slot
+        // We need to collect handles and their current values first to avoid borrow checker issues
+        let mut upvalues_to_close = Vec::new();
         
-        // Since we can't directly iterate the arena and modify upvalues,
-        // we'll need to track which upvalues need closing
-        // For now, we'll iterate through all closures on the call stack
-        // to find their upvalues and close the relevant ones
-        
-        // TODO: Optimize this by maintaining a separate list of open upvalues
-        // For now, we'll just iterate through the arena
-        for (_handle, upvalue) in self.upvalue_arena.iter() {
+        for (handle, upvalue) in self.upvalue_arena.iter() {
             if upvalue.is_open() && upvalue.get_stack_index() >= last_slot {
-                // We need mutable access to close the upvalue
-                // Since arena iterator gives us immutable refs, we'll need a different approach
-                // For now, let's mark this as a TODO
+                let slot = upvalue.get_stack_index();
+                let value = self.stack[slot]; // Copy the current stack value
+                upvalues_to_close.push((handle.clone(), value));
             }
         }
         
-        // Alternative approach: Keep track of open upvalues separately
-        // This is a temporary implementation that doesn't actually close upvalues
-        // but allows us to test the arena-based storage
+        // Now close each upvalue using the copied values
+        for (handle, value) in upvalues_to_close {
+            if let Some(upvalue) = self.upvalue_arena.get(handle) {
+                upvalue.close_with_value(value);
+            }
+        }
     }
 
     fn _read_constant(&mut self, idx: usize) -> NanBoxedValue {
@@ -634,15 +633,19 @@ impl VM {
                     // We need to work around the borrow checker here
                     // The issue is that set_fast needs &mut self, but we also have a mutable borrow from upvalue_arena
                     // Solution: Get the upvalue, check if it's open, and handle accordingly
-                    let upvalue = self.upvalue_arena.get(upvalue_handle).unwrap();
+                    let upvalue = self.upvalue_arena.get(upvalue_handle.clone()).unwrap();
                     if upvalue.is_open() {
                         let stack_index = upvalue.get_stack_index();
                         self.stack[stack_index] = nan_boxed_value;
                     } else {
-                        // For closed upvalues, we need to update the value inside
-                        // This requires mutable access, which we can't get while borrowing self
-                        // For now, let's panic to see if this case occurs
-                        panic!("SetUpvalue on closed upvalue not yet implemented with arena");
+                        // For closed upvalues, we need to update the stored value
+                        // Use the same approach as close_upvalues to avoid borrow checker issues
+                        let upvalue_handle_clone = upvalue_handle.clone();
+                        drop(upvalue); // Release immutable borrow
+                        
+                        if let Some(upvalue) = self.upvalue_arena.get(upvalue_handle_clone) {
+                            upvalue.close_with_value(nan_boxed_value);
+                        }
                     }
                 }
                 Op::SetGlobal => {

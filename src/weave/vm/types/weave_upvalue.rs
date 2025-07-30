@@ -28,6 +28,14 @@ impl WeaveUpvalue {
         let closed_value = self.value.borrow().close(vm);
         *self.value.borrow_mut() = closed_value;
     }
+    
+    pub fn close_with_value(&self, value: NanBoxedValue) {
+        // Close the upvalue with a specific value (used during stack cleanup)
+        let closed_upvalue = crate::weave::vm::types::upvalues::InnerUpvalue::Closed(
+            crate::weave::vm::types::upvalues::inner::ClosedUpvalue::new(value)
+        );
+        *self.value.borrow_mut() = closed_upvalue;
+    }
 
     pub fn is_open(&self) -> bool {
         matches!(*self.value.borrow(), InnerUpvalue::Open(_))
