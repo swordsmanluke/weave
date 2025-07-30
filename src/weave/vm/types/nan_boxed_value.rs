@@ -184,6 +184,20 @@ impl NanBoxedValue {
         crate::weave::vm::types::ClosureHandle::from_u64(handle_data)
     }
     
+    /// Fast type checking - returns true if this value represents an upvalue
+    #[inline]
+    pub fn is_upvalue(self) -> bool {
+        (self.bits & QUIET_NAN_MASK) == QUIET_NAN_MASK && 
+        (self.bits & 0x0007000000000000) == UPVALUE_TAG
+    }
+    
+    /// Extracts the upvalue pointer (assumes is_upvalue() == true)
+    #[inline]
+    pub fn as_upvalue(self) -> *const crate::weave::vm::types::WeaveUpvalue {
+        debug_assert!(self.is_upvalue(), "Value is not an upvalue");
+        (self.bits & 0x0000FFFFFFFFFFFF) as *const crate::weave::vm::types::WeaveUpvalue
+    }
+
     /// Extracts the pointer value and tag (assumes is_pointer() == true)
     #[inline]
     pub fn as_pointer(self) -> (*const (), PointerTag) {

@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use crate::weave::Chunk;
-use crate::weave::vm::types::weave_upvalue::WeaveUpvalue;
+use crate::weave::vm::types::{UpvalueHandle};
 use crate::weave::vm::types::NanBoxedValue;
 
 #[derive(Clone)]
@@ -79,7 +79,7 @@ impl Display for Upvalue {
 #[derive(Clone, Debug)]
 pub struct FnClosure {
     pub func: Rc<WeaveFn>,
-    pub upvalues: Vec<WeaveUpvalue>
+    pub upvalues: Vec<UpvalueHandle>  // Arena handles to upvalues
 }
 
 impl FnClosure {

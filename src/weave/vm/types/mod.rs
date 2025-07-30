@@ -19,4 +19,6 @@ pub type ClosureArena = Arena<FnClosure>;
 pub type ClosureHandle = Handle<FnClosure>;
 pub type StringArena = Arena<WeaveString>;
 pub type StringHandle = Handle<WeaveString>;
+pub type UpvalueArena = Arena<WeaveUpvalue>;
+pub type UpvalueHandle = Handle<WeaveUpvalue>;
 
