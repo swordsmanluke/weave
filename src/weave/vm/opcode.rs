@@ -39,6 +39,7 @@ pub enum Op {
     Call,
     RETURN,
     POP,
+    CloseUpvalues,
 
     // IO
     PRINT,
@@ -77,6 +78,7 @@ impl Op {
             
             Op::SetUpvalue => vec![24],
             Op::GetUpvalue => vec![25],
+            Op::CloseUpvalues => vec![26],
             
             Op::INVALID(byte) => vec![255],
         }
@@ -112,6 +114,7 @@ impl Op {
             
             24 => Op::SetUpvalue,
             25 => Op::GetUpvalue,
+            26 => Op::CloseUpvalues,
 
             _ => INVALID(byte), // Should never happen, but when it does - die.
         }

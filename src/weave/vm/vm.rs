@@ -440,6 +440,10 @@ impl VM {
                         log_debug!("STACK POP", value = format!("{:?}", value).as_str(), stack_len = self.stack.len(), opcode = "POP", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
                     }
                 },
+                Op::CloseUpvalues => {
+                    let slot = self.call_stack.next_byte() as usize;
+                    self.close_upvalues(slot);
+                },
                 Op::CONSTANT => {
                     let idx = self.call_stack.next_u16() as usize;
                     #[cfg(debug_assertions)]
