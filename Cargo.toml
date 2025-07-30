@@ -16,3 +16,5 @@ tempfile = "3.8"
 [features]
 # Enable VM opcode profiling (performance analysis)
 vm-profiling = []
+# Enable debug logging for VM operations (development only)
+vm-debug = []

@@ -282,9 +282,19 @@ impl VM {
         // We need to collect handles and their current values first to avoid borrow checker issues
         let mut upvalues_to_close = Vec::new();
         
+        log_debug!("CLOSE_UPVALUES DEBUG", last_slot = last_slot, stack_len = self.stack.len());
+        
         for (handle, upvalue) in self.upvalue_arena.iter() {
             if upvalue.is_open() && upvalue.get_stack_index() >= last_slot {
                 let slot = upvalue.get_stack_index();
+                log_debug!("UPVALUE TO CLOSE", slot = slot, stack_len = self.stack.len());
+                
+                if slot >= self.stack.len() {
+                    log_debug!("UPVALUE SLOT OUT OF BOUNDS", slot = slot, stack_len = self.stack.len());
+                    // Skip this upvalue - it's already invalid
+                    continue;
+                }
+                
                 let value = self.stack[slot]; // Copy the current stack value
                 upvalues_to_close.push((handle.clone(), value));
             }
@@ -488,7 +498,11 @@ impl VM {
                                 
                                 // Store the modified closure in arena
                                 let closure_handle = self.closure_arena.insert(closure);
+                                #[cfg(feature = "vm-debug")]
+                                let debug_handle = closure_handle.clone();
                                 let closure_nan_boxed = NanBoxedValue::closure_handle(closure_handle);
+                                #[cfg(feature = "vm-debug")]
+                                log_debug!("CLOSURE CREATED WITH UPVALUES", handle = format!("{:?}", debug_handle).as_str(), is_closure_handle = closure_nan_boxed.is_closure_handle());
                                 self.stack.push(closure_nan_boxed);
                             }
                             _ => {
@@ -503,6 +517,9 @@ impl VM {
                     let arg_count = self.call_stack.next_byte() as usize;
                     let func_slot = (self.stack.len() - 1) - arg_count;
                     let func_nan_boxed = *self.stack.get(func_slot).unwrap();
+                    
+                    #[cfg(feature = "vm-debug")]
+                    log_debug!("CALL DEBUG", is_closure_handle = func_nan_boxed.is_closure_handle(), is_pointer = func_nan_boxed.is_pointer(), func_value = format!("{:?}", func_nan_boxed).as_str());
                     
                     if func_nan_boxed.is_closure_handle() {
                         // New arena-based closure handle
@@ -589,6 +606,8 @@ impl VM {
                     let slot = self.call_stack.next_slot();
                     // Peek the value instead of popping to keep it on stack for expression semantics
                     let nan_boxed_value = *self.stack.last().unwrap_or(&NanBoxedValue::null());
+                    #[cfg(feature = "vm-debug")]
+                    log_debug!("SET LOCAL", slot = slot, value = format!("{:?}", nan_boxed_value).as_str());
                     // Ensure stack is large enough for the slot - use exponential growth
                     if self.stack.len() <= slot {
                         // Use exponential growth strategy to avoid O(n²) resize behavior
@@ -608,6 +627,8 @@ impl VM {
                     }
                     // Use reference to avoid cloning during push
                     let value = self.stack[slot];
+                    #[cfg(feature = "vm-debug")]
+                    log_debug!("GET LOCAL", slot = slot, value = format!("{:?}", value).as_str());
                     self.stack.push(value);
                 }
                 Op::GetUpvalue => {

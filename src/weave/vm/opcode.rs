@@ -227,7 +227,7 @@ impl Disassemble for Op {
                 log_debug!("Disassemble Local", slot = slot, value = format!("{:?}", value).as_str());
                 offset + 2
             }
-            Op::GetUpvalue | Op::SetUpvalue => {
+            Op::GetUpvalue | Op::SetUpvalue | Op::CloseUpvalues => {
                 #[cfg(debug_assertions)]
                 println!("{0:04x}  {1}  {2:?}", offset, chunk.line_str(offset), self);
                 offset + 2

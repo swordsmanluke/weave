@@ -35,6 +35,9 @@ Samples of Weave syntax can be found in docs/syntax.md
 ### Build and Run
 - `cargo build` - Build the project in debug mode
 - `cargo build --release` - Build optimized release version
+- `cargo build --features vm-profiling` - include VM profiling data
+- `cargo run -- --log-level debug` - include debug level logs (log files are in ./.weaver/logs/weaver.log)
+- `cargo run -- --log-console` - display log output in the console
 - `cargo run` - Start the REPL (interactive shell)
 - `cargo run <filename.wv>` - Execute a Weave script file
 

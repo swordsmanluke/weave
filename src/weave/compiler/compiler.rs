@@ -491,15 +491,17 @@ impl Compiler {
 
         // Block returns the result of its last expression
         // Pop all but the last expression result
-        // TEMPORARILY DISABLED: Block POPs conflict with upvalue stack references
-        // TODO: Implement proper CloseUpvalues coordination with stack management
-        // The upvalue system works correctly when these POPs don't interfere
-        // Performance optimization can be addressed in a separate task
-        // if expression_count > 1 {
-        //     for _ in 1..expression_count {
-        //         self.emit_basic_opcode(Op::POP);
-        //     }
-        // }
+        if _expression_count > 1 {
+            // CRITICAL: Close upvalues before popping to prevent stack reference invalidation
+            // Upvalues pointing to local variables must be migrated to heap storage
+            // before stack modifications occur
+            self.emit_close_upvalues();
+            
+            // Pop all but the last expression result
+            for _ in 1.._expression_count {
+                self.emit_basic_opcode(Op::POP);
+            }
+        }
 
         self.consume(TokenType::RightBrace, "Expected '}' after block");
     }
@@ -690,6 +692,15 @@ impl Compiler {
         let line = self.line;
         log_debug!("Emitting opcode", opcode = format!("{:?}", op).as_str(), line = line, offset = self.current_chunk().code.len());
         self.current_chunk().write_op(op, line);
+    }
+
+    fn emit_close_upvalues(&mut self) {
+        // Close upvalues by emitting CloseUpvalues instruction
+        // This ensures upvalues are migrated to heap storage before stack modifications
+        // Use current local count as the threshold - close upvalues at or above this level
+        let stack_slot = self.scope.locals_at(self.scope.depth);
+        self.emit_opcode(Op::CloseUpvalues, &vec![stack_slot]);
+        log_debug!("Emitting CloseUpvalues", stack_slot = stack_slot, line = self.line);
     }
 
     fn emit_opcode(&mut self, op: Op, args: &Vec<u8>) {
