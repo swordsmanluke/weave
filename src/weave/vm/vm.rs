@@ -112,7 +112,6 @@ impl CallStack {
     
     pub fn next_slot(&mut self) -> usize {
         let relative_slot = self.next_byte() as usize;
-        let frame_slot = self.cur_frame().slot;
         let absolute_slot = self.cur_frame().i(relative_slot);
         absolute_slot
     }
@@ -586,26 +585,26 @@ impl VM {
                     let slot = self.call_stack.next_slot();
                     // Peek the value instead of popping to keep it on stack for expression semantics
                     let nan_boxed_value = *self.stack.last().unwrap_or(&NanBoxedValue::null());
-                    // Ensure stack is large enough for the slot - O(1) resize instead of O(n) loop
+                    // Ensure stack is large enough for the slot - use exponential growth
                     if self.stack.len() <= slot {
-                        self.stack.resize(slot + 1, NanBoxedValue::null());
-                        log_debug!("STACK RESIZE", old_len = self.stack.len() - (slot + 1 - self.stack.len()), new_len = self.stack.len(), opcode = "SetLocal(grow)", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
+                        // Use exponential growth strategy to avoid O(n²) resize behavior
+                        let new_size = std::cmp::max(slot + 1, self.stack.len() * 2);
+                        self.stack.resize(new_size, NanBoxedValue::null());
                     }
                     self.stack[slot] = nan_boxed_value;
-                    log_debug!("STACK STORE", value = format!("{:?}", nan_boxed_value).as_str(), slot = slot, stack_len = self.stack.len(), opcode = "SetLocal", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
                     // Value stays on stack since assignments are expressions in Weave
                 }
                 Op::GetLocal => {
                     let slot = self.call_stack.next_slot();
-                    // Ensure stack is large enough for the slot - O(1) resize instead of O(n) loop
+                    // Ensure stack is large enough for the slot - use exponential growth
                     if self.stack.len() <= slot {
-                        self.stack.resize(slot + 1, NanBoxedValue::null());
-                        log_debug!("STACK RESIZE", old_len = self.stack.len() - (slot + 1 - self.stack.len()), new_len = self.stack.len(), opcode = "GetLocal(grow)", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
+                        // Use exponential growth strategy to avoid O(n²) resize behavior
+                        let new_size = std::cmp::max(slot + 1, self.stack.len() * 2);
+                        self.stack.resize(new_size, NanBoxedValue::null());
                     }
                     // Use reference to avoid cloning during push
                     let value = self.stack[slot];
                     self.stack.push(value);
-                    log_debug!("STACK PUSH", value = format!("{:?}", value).as_str(), stack_len = self.stack.len(), opcode = "GetLocal", ip = format!("{:x}", self.call_stack.cur_frame().ip.ip).as_str());
                 }
                 Op::GetUpvalue => {
                     let slot = self.call_stack.next_byte() as usize;

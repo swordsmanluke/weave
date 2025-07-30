@@ -23,7 +23,6 @@ impl IP {
 
     pub fn next(&mut self) -> u8 {
         let byte_value = *self.bytecode.get(self.ip).unwrap_or(&0);
-        log_debug!("IP advance", ip = format!("{:0x}", self.ip).as_str(), byte = format!("{:0x}", byte_value).as_str());
         match self.bytecode.get(self.ip) {
             Some(v) => { self.ip += 1; *v},
             None => 0
@@ -45,13 +44,11 @@ impl IP {
     
     pub fn jump(&mut self, jmp_offset: u16) {
         let jmp_offset = self.ip + jmp_offset as usize;
-        log_debug!("IP jump forward", from = format!("{:0x}", self.ip).as_str(), to = format!("{:0x}", jmp_offset).as_str());
         self.ip = jmp_offset;
     }
 
     pub fn jump_back(&mut self, jmp_offset: u16) {
         let jmp_offset = self.ip - jmp_offset as usize;
-        log_debug!("IP jump backward", from = format!("{:0x}", self.ip).as_str(), to = format!("{:0x}", jmp_offset).as_str());
         self.ip = jmp_offset;
     }
     

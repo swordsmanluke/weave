@@ -413,8 +413,8 @@ impl Compiler {
         // JumpIfFalse now pops the condition automatically
 
         self.consume(TokenType::LeftBrace, "Expected Block after condition");
-        self.block();
-        self.emit_basic_opcode(Op::POP); // Pop any leftover expression results from loop body
+        self.block(); // Block now manages its own stack, returns last expression
+        self.emit_basic_opcode(Op::POP); // Pop the block result since while loop discards it
         self.emit_loop(loop_start);
 
         self.patch_jump(exit_jump);
@@ -483,8 +483,19 @@ impl Compiler {
     }
 
     fn block(&mut self) {
+        let mut expression_count = 0;
         while !self.parser.cur_is(TokenType::RightBrace) && !self.parser.cur_is(TokenType::EOF) {
             self.declaration();
+            expression_count += 1;
+        }
+
+        // Block returns the result of its last expression
+        // Pop all but the last expression result
+        // TODO: This conflicts with upvalue references - need to fix upvalue system
+        if expression_count > 1 {
+            for _ in 1..expression_count {
+                self.emit_basic_opcode(Op::POP);
+            }
         }
 
         self.consume(TokenType::RightBrace, "Expected '}' after block");
