@@ -1,0 +1,96 @@
+title: "Block POP Sequence Bug Fix: Stack Behavior Analysis"
+
+# Define the main layout
+buggy_flow: "Buggy Behavior (Fixed)" {
+  shape: sequence_diagram
+  
+  function: "Function Execution"
+  stack: "VM Stack State"
+  result: "Final Result"
+  
+  function -> stack: "1. first = 100"
+  stack: "[..., Number(100)]"
+  
+  function -> stack: "2. second = 200"
+  stack: "[..., Number(100), Number(200)]"
+  
+  function -> stack: "3. second (GetLocal)"
+  stack: "[..., Number(100), Number(200), Number(200)]"
+  
+  function -> stack: "4. Block POP (BUGGY)"
+  stack: "❌ POP removes Number(200)\n❌ POP removes Number(200)\n[..., Number(100)]"
+  
+  function -> result: "5. RETURN"
+  result: "❌ Returns Number(100)\n(Wrong - first assignment!)"
+}
+
+fixed_flow: "Fixed Behavior (Correct)" {
+  shape: sequence_diagram
+  
+  function: "Function Execution"
+  stack: "VM Stack State"
+  result: "Final Result"
+  
+  function -> stack: "1. first = 100"
+  stack: "[..., Number(100)]"
+  
+  function -> stack: "2. second = 200"
+  stack: "[..., Number(100), Number(200)]"
+  
+  function -> stack: "3. second (GetLocal)"
+  stack: "[..., Number(100), Number(200), Number(200)]"
+  
+  function -> stack: "4. Block (FIXED)"
+  stack: "✅ No POPs emitted\n[..., Number(100), Number(200), Number(200)]"
+  
+  function -> result: "5. RETURN"
+  result: "✅ Returns Number(200)\n(Correct - last expression!)"
+}
+
+# Add explanation boxes
+explanation: "Key Insight" {
+  shape: text
+  text: |md
+    ## The Problem
+    POP instructions remove values from the **TOP** of the stack,
+    but we needed to remove values from the **BOTTOM** of the
+    expression sequence.
+    
+    ## The Solution  
+    Let RETURN handle stack cleanup - it naturally gets the
+    correct value (last expression result) from the stack top.
+  |
+}
+
+code_comparison: "Code Changes" {
+  before: "Before (Buggy)" {
+    shape: code
+    code: |
+      // PROBLEMATIC
+      if _expression_count > 1 {
+          for _ in 1.._expression_count {
+              self.emit_basic_opcode(Op::POP);
+          }
+      }
+    |
+  }
+  
+  after: "After (Fixed)" {
+    shape: code
+    code: |
+      // FIXED - No POPs needed
+      if _expression_count > 1 {
+          // DISABLED: Let RETURN handle cleanup
+          // for _ in 1.._expression_count {
+          //     self.emit_basic_opcode(Op::POP);
+          // }
+      }
+    |
+  }
+}
+
+# Layout
+buggy_flow -> fixed_flow: "Fix Applied"
+explanation -> code_comparison
+buggy_flow.result -> explanation: "Analysis"
+fixed_flow.result -> code_comparison: "Implementation"
