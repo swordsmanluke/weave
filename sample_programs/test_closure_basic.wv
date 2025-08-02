@@ -1,0 +1,22 @@
+# Test simple closure creation performance  
+fn outer() {
+    x = 42
+    
+    fn inner() {
+        puts x  # This captures x from outer scope, creating upvalue
+    }
+    
+    inner()
+}
+
+# Test calling outer function many times (each creates closure)
+fn test_many_closures() {
+    i = 0
+    while i < 100 {
+        outer()
+        i = i + 1
+    }
+    puts "Done with 100 closures"
+}
+
+test_many_closures()

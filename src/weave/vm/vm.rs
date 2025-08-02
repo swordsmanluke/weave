@@ -605,8 +605,7 @@ impl VM {
                 Op::SetLocal => {
                     let relative_slot = self.call_stack.next_byte() as usize;
                     let slot = self.call_stack.cur_frame().i(relative_slot);
-                    // Peek the value instead of popping to keep it on stack for expression semantics
-                    let nan_boxed_value = *self.stack.last().unwrap_or(&NanBoxedValue::null());
+                    let value = self.stack.pop().unwrap_or(NanBoxedValue::null());
                     #[cfg(feature = "vm-debug")]
                     log_debug!("SET LOCAL", slot = slot, value = format!("{:?}", nan_boxed_value).as_str());
                     // Ensure stack is large enough for the slot - use exponential growth
@@ -615,7 +614,7 @@ impl VM {
                         let new_size = std::cmp::max(slot + 1, self.stack.len() * 2);
                         self.stack.resize(new_size, NanBoxedValue::null());
                     }
-                    self.stack[slot] = nan_boxed_value;
+                    self.stack[slot] = value;
                     // Value stays on stack since assignments are expressions in Weave
                 }
                 Op::GetLocal => {
