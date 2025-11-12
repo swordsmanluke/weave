@@ -1,10 +1,10 @@
-# Weaver
+# Weave
 
 A dynamically-typed programming language interpreter written in Rust, featuring a bytecode compiler and stack-based virtual machine.
 
 ## Overview
 
-Weaver is an interpreter for the Weave programming language, designed for simple, data-pipeline-oriented scripting. The project implements a compiler that transforms Weave source code into bytecode, which is then executed by a custom virtual machine with support for closures, recursion, and first-class functions.
+Weave is an interpreter for the Weave programming language, designed for simple, data-pipeline-oriented scripting. The project implements a compiler that transforms Weave source code into bytecode, which is then executed by a custom virtual machine with support for closures, recursion, and first-class functions.
 
 **Current Status**: Active development - Core language features are implemented including functions, closures, control flow, and recursion. Advanced features like containers, pipeline operators, and file I/O are planned.
 
@@ -41,7 +41,7 @@ Requires Rust 2024 edition or later.
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd weaver
+cd weave
 
 # Build the project
 cargo build --release
@@ -291,13 +291,12 @@ Please run `cargo test` and `cargo clippy` before submitting changes.
 ## Documentation
 
 - **`docs/syntax.md`** - Complete language syntax specification
-- **`CLAUDE.md`** - Development workflow and guidelines
 - **`sample_programs/`** - Example Weave programs for testing
 
 ## Project Structure
 
 ```
-weaver/
+weave/
 ├── src/
 │   ├── main.rs                  # CLI entry point
 │   └── weave/
@@ -309,11 +308,3 @@ weaver/
 ├── docs/                        # Documentation
 └── tests/                       # Integration tests
 ```
-
-## License
-
-See LICENSE file for details.
-
-## Version
-
-Current version: 0.1.0 (Early Development)
